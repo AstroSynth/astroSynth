@@ -22,7 +22,7 @@ The fundamental structure in astroSynth is the observation, an observation is a 
 ## Creating data with an observation
 ```python
 import astroSynth
-obs_1 = astroSynth.PVS(Number=150, noise_range=[0.1, 1], numpoints=200, name='TestOne')
+obs_1 = astroSynth.PVS(Number=10, noise_range=[0.1, 1], numpoints=200, name='TestOne')
 obs_1.build(amp_range=[1, 10], freq_range=[1, 10], phase_range=[1, 2], L_range=[1, 3])
 obs_1.generate(pfrac=0.5)
 print(obs_1)
@@ -35,4 +35,19 @@ import astroSynth
 obs_2 = astroSynth.PVS()
 obs_2.load(directory='TestOne')
 print(obs_2)
+```
+## Accessing Data stored in an observation
+Once data is stored (either loaded or generated) it can all be accessed in the same manner
+```python
+import astroSynth
+import matplotlib.pyplot as plt
+obs_3 = astroSynth.PVS()
+obs_3.load(directory='TestOne')
+for i in obs_3:
+  plt.plot(i[0], i[1], 'o--')
+  if i[2] == 0:
+    plt.title('Non Variable')
+  elif i[2] == '1':
+    plt.title('Variable')
+  plt.show()
 ```
