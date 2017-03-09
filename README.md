@@ -4,10 +4,14 @@ A very basic synthetic generation suite
 ## Installation
 Two ways to install
 # Pip
+```bash
 pip install astroSynth
+```
 
 # github
 or to enusure you have the most up-to-date version clone the repository
-$ git clone https://github.com/tboudreaux/astroSynth
-$ cd astroSynth
-$ python setup.py install
+```bash
+git clone https://github.com/tboudreaux/astroSynth
+cd astroSynth
+python setup.py install
+```
