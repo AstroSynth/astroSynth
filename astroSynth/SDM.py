@@ -185,7 +185,7 @@ def Gen_Spect(data, break_size, samples, time_col='Time', flux_col='Flux',
                 depth += 1
     spect = np.zeros((depth, samples))
     count = 0
-    for i in tqdm(data.axes[0]):x
+    for i in tqdm(data.axes[0]):
         check = len(data[i][time_col]) // break_size
         if check > 0:
             for j in range(check):
