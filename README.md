@@ -8,7 +8,6 @@ Two ways to install
 ```bash
 pip install astroSynth
 ```
-
 2. github
 or to enusure you have the most up-to-date version clone the repository
 ```bash
