@@ -43,11 +43,12 @@ import astroSynth
 import matplotlib.pyplot as plt
 obs_3 = astroSynth.PVS()
 obs_3.load(directory='TestOne')
-for i in obs_3:
-  plt.plot(i[0], i[1], 'o--')
-  if i[2] == 0:
+for Time, Flux, Classification in obs_3:
+  plt.plot(Time, Flux, 'o--')
+  if Classification == 0:
     plt.title('Non Variable')
-  elif i[2] == '1':
+  elif Classification == '1':
     plt.title('Variable')
   plt.show()
 ```
+Note that when retriving elements from an observation a three element tuple will be returned, the first element being the Time array of the observation, the second element being the Flux array of the observation, and the third element being the classification of the light curve (variable - 1, non variable - 0)
