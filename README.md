@@ -29,7 +29,7 @@ print(obs_1)
 obs_1.save
 ```
 ## Loading Data with an observation
-Assuming you have aready have some sythetic data directory 'TestOne\'
+Assuming you have aready have some sythetic data directory 'TestOne/'
 ```python
 import astroSynth
 obs_2 = astroSynth.PVS()
