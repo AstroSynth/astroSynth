@@ -7,5 +7,5 @@ setup(name='astroSynth',
       author='Thomas Boudreaux',
       author_email='thomas@boudreauxmail.com',
       license='MIT',
-      packages=['astroSynth', 'tqdm', 'numpy', 'pandas', 'scipy'],
+      packages=['astroSynth'],
       zip_safe=False)
