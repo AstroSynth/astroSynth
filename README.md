@@ -3,12 +3,12 @@ A very basic synthetic generation suite
 
 ## Installation
 Two ways to install
-# Pip
+1. Pip
 ```bash
 pip install astroSynth
 ```
 
-# github
+2. github
 or to enusure you have the most up-to-date version clone the repository
 ```bash
 git clone https://github.com/tboudreaux/astroSynth
