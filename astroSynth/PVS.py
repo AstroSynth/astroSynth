@@ -1,4 +1,4 @@
-import SDM
+from .SDM import Gen_FT, NyApprox, Normalize, Make_Syth_LCs
 import numpy as np
 from tqdm import tqdm
 from sys import getsizeof
@@ -68,7 +68,7 @@ class PVS:
         freq = np.array(freq)
 
         fout = amp[0] * np.sin(2 * np.pi * freq[0] * x + phase[0])
-        for i in xrange(1, num):
+        for i in range(1, num):
             fout += amp[i] * np.sin(2 * np.pi * freq[i] * x + phase[i])
 
         return fout
@@ -93,7 +93,7 @@ class PVS:
         last_dump = 0
         self.generated = True
         list_lcs = list()
-        for i in tqdm(xrange(self.size), desc='Geneating Light Curves'):
+        for i in tqdm(range(self.size), desc='Geneating Light Curves'):
             rand_pick = np.random.uniform(0, 10)
             if rand_pick < pfrac * 10:
                 pulsator = True
@@ -102,11 +102,11 @@ class PVS:
                 pulsator = False
                 self.classification = np.append(self.classification, 0)
             if self.vmod is True:
-                tlc = SDM.Make_Syth_LCs(f=lambda x: self.f[i](x, self.kwargs[i]), pulsator=pulsator,
+                tlc = Make_Syth_LCs(f=lambda x: self.f[i](x, self.kwargs[i]), pulsator=pulsator,
                                         numpoints=self.depth,
                                         noise_range=self.noise_range)
             else:
-                tlc = SDM.Make_Syth_LCs(f=self.f, pulsator=pulsator,
+                tlc = Make_Syth_LCs(f=self.f, pulsator=pulsator,
                                         numpoints=self.depth,
                                         noise_range=self.noise_range)
             # tlc = np.reshape(tlc, (1, self.depth, 2))
@@ -160,10 +160,10 @@ class PVS:
 
     def xget_lc(self, stop=None):
         if stop is None:
-            for i in xrange(self.size):
+            for i in range(self.size):
                 yield self.__get_lc__(n=i)
         else:
-            for i in xrange(stop):
+            for i in range(stop):
                 yield self.__get_lc__(n=i)
 
     def save(self):
@@ -334,15 +334,15 @@ class PVS:
 
     def get_ft(self, n=0, s=300):
         Time, Flux, Classification = self.__get_lc__(n)
-        FT = SDM.Gen_FT(Time, Flux, SDM.NyApprox(Time), s)
+        FT = Gen_FT(Time, Flux, NyApprox(Time), s)
         return FT['Freq'], FT['Amp'], Classification
 
     def xget_ft(self, stop=None, s=300):
         if stop is None:
-            for i in xrange(self.size):
+            for i in range(self.size):
                 yield self.get_ft(n=i, s=s)
         else:
-            for i in xrange(stop):
+            for i in range(stop):
                 yield self.get_ft(n=i, s=s)
 
     def __getitem__(self, key):
