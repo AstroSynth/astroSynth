@@ -2,8 +2,9 @@
 A very basic synthetic generation suite
 
 ## Installation
-Two ways to install<br>
-2. Pip
+Two ways to install
+
+1. Pip
 ```bash
 pip install astroSynth
 ```
