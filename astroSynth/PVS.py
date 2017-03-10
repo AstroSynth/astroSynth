@@ -291,11 +291,11 @@ class PVS:
             num_lclass = int(j.split('_')[2].split('.')[0])
             self.dumps[num_lcs] = "{}/{}".format(directory, i)
             self.class_dumps[num_lclass] = "{}/{}".format(directory, j)
-        with open('{}/item_loc_meta.PVS'.format(directory), 'rb') as f:
+        with open('{}/item_loc_meta.PVS'.format(directory), 'r') as f:
             lines = [x.split(':') for x in f.readlines()]
             for i in lines:
                 self.item_ref[i[0]] = [i[1], i[2]]
-        with open('{}/object_meta.PVS'.format(directory), 'rb') as f:
+        with open('{}/object_meta.PVS'.format(directory), 'r') as f:
             lines = [x.split(':') for x in f.readlines()]
             for i in lines:
                 if i[0] == 'Size':
