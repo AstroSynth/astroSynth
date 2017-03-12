@@ -41,6 +41,9 @@ class PVS:
     def _seed_generation_(seed=1):
         np.random.seed(seed)
 
+    def __debug_check__(self):
+        print('Version 0.3.3 Development')
+
     def __build_func__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                        freq_range=[1e-7, 1], L_range=[1, 3]):
         if self.vmod is True:
@@ -156,15 +159,13 @@ class PVS:
 
             return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base]
         else:
-            return self.lcs[n].T[1], self.lcs[n].T[0], self.classification[n]
+            return self.lcs[n].T[1], self.lcs[n].T[0], self.classification[n], n
 
-    def xget_lc(self, stop=None):
+    def xget_lc(self, stop=None, start=0):
         if stop is None:
-            for i in range(self.size):
-                yield self.__get_lc__(n=i)
-        else:
-            for i in range(stop):
-                yield self.__get_lc__(n=i)
+            stop = self.size
+        for i in range(start, stop):
+            yield self.__get_lc__(n=i)
 
     def save(self):
         try:
@@ -335,7 +336,7 @@ class PVS:
     def get_ft(self, n=0, s=300):
         Time, Flux, Classification = self.__get_lc__(n)
         FT = Gen_FT(Time, Flux, NyApprox(Time), s)
-        return FT['Freq'], FT['Amp'], Classification
+        return FT['Freq'], FT['Amp'], Classification, n
 
     def xget_ft(self, stop=None, s=300):
         if stop is None:
@@ -345,8 +346,85 @@ class PVS:
             for i in range(stop):
                 yield self.get_ft(n=i, s=s)
 
+    def batch_get(self, batch_size=10, ft=False, s=None, mem_size=1e9):
+        if isinstance(batch_size, str):
+            try:
+                assert batch_size == 'mem_size'
+            except AssertionError as e:
+                e.args += ('Error Unrecognizer argumenent: <"{}">'.format(batch_size),
+                           'Please either set batch_size to an integer st. 0 < batchsize <= len(PVS())',
+                           'or set batch batch_size equal to <"mem_size"> where the batch will fill the defined memory',
+                           'this is defaulted to 1GB but can be adjusted (in byte space) with the mem_size parameter')
+                raise
+        if isinstance(batch_size, int):
+            try:
+                assert 0 < batch_size <= self.size
+            except AssertionError as e:
+                e.args += ('Error, Invalid batch size', 'Please make sure batch_size parameter is greater than 0', 
+                            'please also make sure batch size parameter is less than or equal to len(PVS())')
+        if ft is True and s is None:
+            s = 300
+        if batch_size == 'mem_size':
+            if ft is False:
+                mem_use_single = getsizeof(self.lcs[0])
+                batch_size = int(mem_size / mem_use_single)
+            else:
+                mem_use_single = getsizeof(self.get_ft(s=s))
+                batch_size = int(mem_size / mem_use_single)
+        if ft is False:
+            for i in range(int(self.size/batch_size)):
+                yield self.__batch_get_lc__(start=i * batch_size,
+                                            stop=(i * batch_size) + batch_size,
+                                            mem_size=mem_size)
+        else:
+            for i in range(int(self.size / batch_size)):
+                yield self.__batch_get_ft__(start = i * batch_size,
+                                            stop=(i * batch_size) + batch_size,
+                                            s=s, mem_size=mem_size)
+
+    def __batch_get_ft__(self, start=0, mem_size = 1e9, step=1,
+                         stop=None, s=300):
+        if stop is None:
+            stop = self.size
+        mem_use_single = getsizeof(self.get_ft(s=s))
+        num = int(mem_size / mem_use_single)
+        if stop < start + (num * step):
+            num = stop
+        else:
+            num *= step
+        out_fts = list()
+        for i in range(start, start + num, step):
+            Freq, Amp, Class, Number = self.get_ft(n=i, s=s)
+            out_fts.append([Freq, Amp, Class, Number])
+        return out_fts
+
+    def __batch_get_lc__(self, start=0, mem_size=1e9, step=1,
+                         stop=None):
+        if stop is None:
+            stop = self.size
+        mem_use_single = getsizeof(self.lcs[0])
+        num = int(mem_size / mem_use_single)
+        if stop < start + (num * step):
+            num = stop
+        else:
+            num *= step
+            num += start
+        out_lcs = list()
+        for i in range(start, num , step):
+            Time, Flux, Class, Number = self.__get_lc__(n=i)
+            out_lcs.append([Time, Flux, Class, Number])
+        return out_lcs
+
     def __getitem__(self, key):
-        return self.__get_lc__(n=key)
+        if isinstance(key, int):
+            return self.__get_lc__(n=key)
+        elif isinstance(key, slice):
+            tup_cut = key.indices(len(self))
+            return self.__batch_get_lc__(start=tup_cut[0],
+                                         stop=tup_cut[1],
+                                         step=tup_cut[2])
+        else:
+            raise TypeError("index must be int or slice")
 
     def __len__(self):
         return self.size
