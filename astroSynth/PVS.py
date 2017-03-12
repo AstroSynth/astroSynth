@@ -4,7 +4,10 @@ from tqdm import tqdm
 from sys import getsizeof
 from tempfile import TemporaryFile
 import os
+import pickle
 import shutil
+
+import time
 
 
 class PVS:
@@ -24,6 +27,7 @@ class PVS:
         self.item_ref = dict()
         self.classification = np.zeros((0))
         self.temp_file = True
+        self.state = -1
         if name is not None:
             self.name = name.rstrip()
         else:
@@ -125,11 +129,11 @@ class PVS:
                 last_dump = i
                 list_lcs = list()
                 self.classification = np.zeros((0))
-            self.item_ref[-1] = [last_dump, len(list_lcs) + last_dump]
+            self.item_ref[-1] = [last_dump + 1, len(list_lcs) + last_dump]
         self.lcs = np.array(list_lcs)
         self.temp_file = True
 
-    def __get_lc__(self, n=0):
+    def __get_lc__(self, n=0, state_change=False):
 
         try:
             assert self.generated is True
@@ -139,27 +143,35 @@ class PVS:
             raise
         file_num = -1
         base = 0
-        for i in self.item_ref:
-            if int(self.item_ref[i][0]) <= n <= int(self.item_ref[i][1]):
-                file_num = int(i)
-                base = int(self.item_ref[i][0])
+        for k in self.item_ref:
+            # print('HERE')
+            if int(self.item_ref[k][0]) <= n <= int(self.item_ref[k][1]):
+                # print('Pulling from file: {}'.format(k))
+                file_num = int(k)
+                base = int(self.item_ref[k][0])
                 break
 
-        if file_num >= 0:
+        if file_num != self.state:
             if self.temp_file is True:
+                # print('ERROR IF HERE')
                 self.dumps[file_num].seek(0)
                 self.class_dumps[file_num].seek(0)
-
+            print(self.dumps)
             tlcs = np.load(self.dumps[file_num])
             tclass = np.load(self.class_dumps[file_num])
+            if state_change is True:
+                self.lcs = tlcs
+                self.classification = tclass
+                self.state = file_num
 
             if self.temp_file is True:
+                # print('ERROR IF HERE')
                 self.dumps[file_num].seek(0, os.SEEK_END)
                 self.class_dumps[file_num].seek(0, os.SEEK_END)
-
+            # print("size of tlcs is: {} MB".format(getsizeof(tlcs) * 1e-6))
             return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n
         else:
-            return self.lcs[n].T[1], self.lcs[n].T[0], self.classification[n], n
+            return self.lcs[n - base].T[1], self.lcs[n - base].T[0], self.classification[n - base], n
 
     def xget_lc(self, stop=None, start=0):
         if stop is None:
@@ -285,8 +297,8 @@ class PVS:
             raise
         self.lcs = np.load('{}/LightCurve_{}.npy'.format(directory, start))
         self.classification = np.load('{}/LightCurve_Class_{}.npy'.format(directory, start))
-        other_lcs = [x for x in lcs if x != 'LightCurve_{}.npy'.format(start)]
-        other_lclass = [x for x in lclass if x != 'LightCurve_Class_{}.npy'.format(start)]
+        other_lcs = [x for x in lcs]# if x != 'LightCurve_{}.npy'.format(start)]
+        other_lclass = [x for x in lclass]# if x != 'LightCurve_Class_{}.npy'.format(start)]
         for i, j in zip(other_lcs, other_lclass):
             num_lcs = int(i.split('_')[1].split('.')[0])
             num_lclass = int(j.split('_')[2].split('.')[0])
@@ -372,7 +384,7 @@ class PVS:
                 mem_use_single = getsizeof(self.get_ft(s=s))
                 batch_size = int(mem_size / mem_use_single)
         if ft is False:
-            for i in range(int(self.size/batch_size)):
+            for i in range(int(self.size / batch_size)):
                 yield self.__batch_get_lc__(start=i * batch_size,
                                             stop=(i * batch_size) + batch_size,
                                             mem_size=mem_size)
@@ -410,9 +422,15 @@ class PVS:
             num *= step
             num += start
         out_lcs = list()
-        for i in range(start, num , step):
-            Time, Flux, Class, Number = self.__get_lc__(n=i)
+        for j in range(start, num , step):
+            start_time = time.time()
+            Time, Flux, Class, Number = self.__get_lc__(n=j, state_change=True)
             out_lcs.append([Time, Flux, Class, Number])
+            end_time = time.time()
+            # print("Time is {}, with j: {}, of a size: {} MB\nFrom {} to {}".format(end_time - start_time, j, getsizeof(out_lcs) * 1e-6, start, num))
+        # print('The List has been broken')
+        j = 0
+        # print('J is now {}'.format(j))
         return out_lcs
 
     def __getitem__(self, key):
