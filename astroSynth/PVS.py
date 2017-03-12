@@ -157,7 +157,7 @@ class PVS:
                 self.dumps[file_num].seek(0, os.SEEK_END)
                 self.class_dumps[file_num].seek(0, os.SEEK_END)
 
-            return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base]
+            return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n
         else:
             return self.lcs[n].T[1], self.lcs[n].T[0], self.classification[n], n
 
