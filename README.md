@@ -53,3 +53,22 @@ for Time, Flux, Classification in obs_3:
   plt.show()
 ```
 Note that when retriving elements from an observation a three element tuple will be returned, the first element being the Time array of the observation, the second element being the Flux array of the observation, and the third element being the classification of the light curve (variable - 1, non variable - 0)
+
+## Getting Batches of data
+astroSynth can retrive batches of Light curves or Fourier transforms at a time, this can be helpful if training an algorithm with a data set larger than can fit in memory.
+### Get Batches of Light Curves
+```python
+import astroSynth
+obs_4 = astroSynth.PVS()
+obs_4.load(directory='TestOne')
+for data in obs_4.batch_get(batch_size=1000):
+    bar = foo(data)
+```
+### Get Batches of Fourier Transform
+```python
+import astroSynth
+obs_5 = astroSynth.PVS()
+obs_5.load(directory='TestOne')
+for data in obs_5.batch_get(batch_size=1000, ft=True):
+    bar = foo(data)
+```
