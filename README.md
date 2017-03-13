@@ -61,7 +61,7 @@ astroSynth can retrive batches of Light curves or Fourier transforms at a time, 
 import astroSynth
 obs_4 = astroSynth.PVS()
 obs_4.load(directory='TestOne')
-for data in obs_4.batch_get(batch_size=1000):
+for data in obs_4.batch_get(batch_size=5):
     bar = foo(data)
 ```
 ### Get Batches of Fourier Transform
@@ -69,6 +69,7 @@ for data in obs_4.batch_get(batch_size=1000):
 import astroSynth
 obs_5 = astroSynth.PVS()
 obs_5.load(directory='TestOne')
-for data in obs_5.batch_get(batch_size=1000, ft=True):
+for data in obs_5.batch_get(batch_size=5, ft=True):
     bar = foo(data)
 ```
+Both of these will return 5 elemements at a time (that number can be made n length such that n <= len(obs)) or <'mem_size'> where the batch will expand to fill the avalible memory
