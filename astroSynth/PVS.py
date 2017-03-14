@@ -4,10 +4,8 @@ from tqdm import tqdm
 from sys import getsizeof
 from tempfile import TemporaryFile
 import os
-import pickle
 import shutil
 
-import time
 
 """
 PVS (Pulsating Variable Star)- Class
@@ -156,8 +154,42 @@ class PVS:
                 self.f[i] = lambda x, d: self.__mode_addition__(x, **d)
     @staticmethod
     def __mode_addition__(x, num=1, phase=[0], amp=[1], freq=[1]):
-        assert num is not 0
-        assert len(phase) == len(amp) == len(freq) == num
+        """
+        description:
+            combine multiple modes of pulsation into one function
+        params:
+            x: semi-continuous array of values to evalueate 
+               function over (__getitem__ numerical type)
+            num: number of pulsation modes to consider (int)
+            phase: phases to use in pulsation modes 
+                  (float list of size num)
+            amp: amplutudes to use in pulsation modes:
+                 (float list of size num)
+            freq: frequencies to use in pulsation modes:
+                  (float list of size num)
+        returns:
+            fout: evaluated over x sum of sin functions (ndarray)
+        raises:
+            AssertationError: If num = 0 then Assertation error is raised
+            AssertationError: If num is not equal to the length of all
+                              three parameter lists then an Assertation
+                              error is rasised
+
+        """
+        try:
+            assert num is not 0
+        except AssertionError as e:
+            e.args += ('Error: num is 0', 'Cannot have 0 Pulsations mode')
+            raise
+
+        try:
+            assert len(phase) == len(amp) == len(freq) == num
+        except AssertionError as e:
+            e.args += ('Error: Pulsation mode lengh inconsistent', 
+                      'length of phase, amp, freq, and size of n are inconsistent', 
+                      'these must always match')
+            raise
+
         phase = np.array(phase)
         amp = np.array(amp)
         freq = np.array(freq)
@@ -232,19 +264,15 @@ class PVS:
         file_num = -1
         base = 0
         for k in self.item_ref:
-            # print('HERE')
             if int(self.item_ref[k][0]) <= n <= int(self.item_ref[k][1]):
-                # print('Pulling from file: {}'.format(k))
                 file_num = int(k)
                 base = int(self.item_ref[k][0])
                 break
 
         if file_num != self.state:
             if self.temp_file is True:
-                # print('ERROR IF HERE')
                 self.dumps[file_num].seek(0)
                 self.class_dumps[file_num].seek(0)
-            print(self.dumps)
             tlcs = np.load(self.dumps[file_num])
             tclass = np.load(self.class_dumps[file_num])
             if state_change is True:
@@ -253,10 +281,8 @@ class PVS:
                 self.state = file_num
 
             if self.temp_file is True:
-                # print('ERROR IF HERE')
                 self.dumps[file_num].seek(0, os.SEEK_END)
                 self.class_dumps[file_num].seek(0, os.SEEK_END)
-            # print("size of tlcs is: {} MB".format(getsizeof(tlcs) * 1e-6))
             return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n
         else:
             return self.lcs[n - base].T[1], self.lcs[n - base].T[0], self.classification[n - base], n
@@ -511,14 +537,9 @@ class PVS:
             num += start
         out_lcs = list()
         for j in range(start, num , step):
-            start_time = time.time()
             Time, Flux, Class, Number = self.__get_lc__(n=j, state_change=True)
             out_lcs.append([Time, Flux, Class, Number])
-            end_time = time.time()
-            # print("Time is {}, with j: {}, of a size: {} MB\nFrom {} to {}".format(end_time - start_time, j, getsizeof(out_lcs) * 1e-6, start, num))
-        # print('The List has been broken')
         j = 0
-        # print('J is now {}'.format(j))
         return out_lcs
 
     def __getitem__(self, key):
