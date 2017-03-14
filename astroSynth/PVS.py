@@ -9,11 +9,41 @@ import shutil
 
 import time
 
+"""
+PVS (Pulsating Variable Star)- Class
+
+Description:
+    Class to generate, load, acess, store, and do very basic analysis
+        Synthetically generated Light curves
+
+"""
 
 class PVS:
     def __init__(self, Number=100, noise_range=[0.1, 1.1], vmod=True,
                  f=lambda x: np.sin(x), numpoints=100, mag_range=[6, 20],
                  verbose=0, name=None):
+        """
+        PVS Initilization
+
+        Params:
+            Number: Number of light curves to generate in the PVS object (int)
+            noise_range: noise range to use with [0] being the lowest and [1]
+                         being the largest (2-element float list)
+            vmod: Use a continuous range of functions or one function defined
+                  in f (bool)
+            f: Function to define pulsation, used onley if vmod is true 
+               (python function)
+            numpoints: The number of points to generate per light curve (int)
+            mag_range: The magnitude range of stars to generate light curves 
+                       from (2-element floar list) [Not currently used]
+            verbose: the verbosity which with to use when representing the 
+                     object (0 - default, 1 - add dump info, 2 - add stored 
+                     data)
+            name: Name of object to use as directory name when saving object
+        Returnes:
+            Fully formed PVS() type object, ready to build-generate or to 
+            load data
+        """
         self.size = Number
         self.noise_range = noise_range
         self.depth = numpoints
@@ -43,13 +73,71 @@ class PVS:
 
     @staticmethod
     def _seed_generation_(seed=1):
+        """
+        descriptpion:
+            Seed the random generator with the same seed each time 
+            to achive comparable results.
+        params:
+            seed: Seed to use in np.random.seed() (int)
+        returns:
+            N/A
+        pre-state:
+            Random unseeded
+        post-state:
+            Random seeded to param:seed
+
+        """
         np.random.seed(seed)
 
     def __debug_check__(self):
-        print('Version 0.3.3 Development')
+        """
+        description:
+            print the current development version
+        params:
+            self: PVS() object
+        Returns:
+            N/A
+        """
+        print('Version 0.3.4 Development')
 
     def __build_func__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                        freq_range=[1e-7, 1], L_range=[1, 3]):
+        """
+        description:
+            hidden function to build the continuous set of pulsation 
+            charectaristic functions
+        params:
+            self: PVS() objects
+            phase_range: range of phases to use (randomly select 
+                         between them inclusive) where [0] is the
+                         smallest phase and [1] is the largest phase 
+                         (2-element float list)
+            amp_range: range of amplitudes to use (randomly select
+                       between them inlusive) where [0] is the smallest 
+                       amplitude and [1] is the largest amplitude 
+                       (2-element float list)
+            freq_range: range of frequencies to use (randomly select 
+                        between them inclusive) where [0] is the smallest 
+                        frequency and [1] is the largest frequency 
+                        (2-element float list)
+            L_range: range of pulsation modes to use (randomly select 
+                     between them inclusive) where [0] is the smallest 
+                     number of pulsation modes and [1] is the largest 
+                     number of pulsation modes (2-element int list)
+        returns:
+            N/A
+        pre-state:
+            if param:self.vmod is true:
+                param:self.kwargs empty dictionary
+                param:self.f empty dictionary
+            if param:self.vmod is False:
+                param:self.kwargs empty dictionary
+                param:self.f empty dictionary
+        post-state:
+            if param:self.vmod is true:
+                param:self.kwargs dicitonary filled with parameters for funational form
+                param:self.f dictionaty filled with functional forms
+        """
         if self.vmod is True:
             for i in tqdm(range(self.size), desc='Building Light Curve Functional Form'):
                 kwargs = dict()
