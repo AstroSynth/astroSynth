@@ -174,7 +174,6 @@ class PVS:
             AssertationError: If num is not equal to the length of all
                               three parameter lists then an Assertation
                               error is rasised
-
         """
         try:
             assert num is not 0
@@ -202,13 +201,85 @@ class PVS:
 
     def build(self, phase_range=[0, np.pi], amp_range=[0, 1],
               freq_range=[1e-7, 1], L_range=[1, 3], seed=1):
+        """
+        description:
+            user facing build function to seed, build and then store 
+            the built state
+        Params:
+            self: PVS() object
+            phase_range: range of phases to use (randomly select 
+                         between them inclusive) where [0] is the
+                         smallest phase and [1] is the largest phase 
+                         (2-element float list)
+            amp_range: range of amplitudes to use (randomly select
+                       between them inlusive) where [0] is the smallest 
+                       amplitude and [1] is the largest amplitude 
+                       (2-element float list)
+            freq_range: range of frequencies to use (randomly select 
+                        between them inclusive) where [0] is the smallest 
+                        frequency and [1] is the largest frequency 
+                        (2-element float list)
+            L_range: range of pulsation modes to use (randomly select 
+                     between them inclusive) where [0] is the smallest 
+                     number of pulsation modes and [1] is the largest 
+                     number of pulsation modes (2-element int list)
+            seed: Seed to use in np.random.seed() (int)
+        Returns:
+            N/A
+        pre-state:
+            PVS() object is unseeded
+            if param:self.vmod is true:
+                param:self.kwargs empty dictionary
+                param:self.f empty dictionary
+            if param:self.vmod is False:
+                param:self.kwargs empty dictionary
+                param:self.f empty dictionary
+            param:self.built is False
+        post-state:
+            if param:self.vmod is true:
+                param:self.kwargs dicitonary filled with parameters for funational form
+                param:self.f dictionaty filled with functional forms
+            param:self.built is True
+        """
         self._seed_generation_(seed)
         self.__build_func__(phase_range=phase_range, amp_range=amp_range,
                             freq_range=freq_range, L_range=L_range)
         self.built = True
 
     def generate(self, pfrac=0.1):
-
+        """
+        description:
+            generate the data given an already build PVS() object 
+            (where param:self.built is true)
+        params:
+            self: PVS() object
+            pfrac: Pulstion fraction - fraction of generated 
+                   targets which will show a pulsation (float)
+        returnes:
+            N/A
+        Raises:
+            AssertationError: if the PVS() object has not been built
+        pre-state:
+            param:self.generated is False
+            param:self.classification is empty ndarray
+            param:self.lcs is empty list
+            param:self.temp_file is true
+            param:self.dumps is empty dictionary
+            param:self.class_dumps is empty dictionary
+            param:self.item_ref is empty dictionary
+            No file are save to disk
+        post-state:
+            param:self.generated is True
+            param:self.temp_file is true
+            param:classification is 1D ndarray of size 
+                  param:self.size
+            param:lcs is 3D array of size 
+                  (param:self.size x param:self.depth x 2)
+            param:self.dumps may be filled
+            param:self.class_dumps may be filled
+            param:self.item_ref may be filld
+            Files are saved to disk as temp files
+        """
         try:
             assert self.built is True
         except AssertionError as e:
@@ -236,8 +307,6 @@ class PVS:
                 tlc = Make_Syth_LCs(f=self.f, pulsator=pulsator,
                                         numpoints=self.depth,
                                         noise_range=self.noise_range)
-            # tlc = np.reshape(tlc, (1, self.depth, 2))
-            # self.lcs = np.vstack((self.lcs, tlc))
             list_lcs.append(tlc)
             if getsizeof(list_lcs) > 1e5:
                 self.dumps[dump_num] = TemporaryFile()
@@ -411,8 +480,8 @@ class PVS:
             raise
         self.lcs = np.load('{}/LightCurve_{}.npy'.format(directory, start))
         self.classification = np.load('{}/LightCurve_Class_{}.npy'.format(directory, start))
-        other_lcs = [x for x in lcs]# if x != 'LightCurve_{}.npy'.format(start)]
-        other_lclass = [x for x in lclass]# if x != 'LightCurve_Class_{}.npy'.format(start)]
+        other_lcs = [x for x in lcs]
+        other_lclass = [x for x in lclass]
         for i, j in zip(other_lcs, other_lclass):
             num_lcs = int(i.split('_')[1].split('.')[0])
             num_lclass = int(j.split('_')[2].split('.')[0])
