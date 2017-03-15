@@ -323,6 +323,37 @@ class PVS:
         self.temp_file = True
 
     def __get_lc__(self, n=0, state_change=False):
+        """
+        desctription:
+            Hidden function to retrieve the nth light curve from the PVS() 
+            object with the possibilty existing to change the data loaded 
+            into memory
+        Params:
+            self: PVS() object
+            n: index of light curve to retrieve (int)
+            state_change: whether to allow the object to change what is 
+                          loaded into param:self.lcs and 
+                          param:self.classification in order that future 
+                          retrivals may not take so many np.load calls
+        Returns:
+            Four element Tuple
+                0: Light curve time array
+                1: Light curve flux array
+                2: Light curve classification (0.0 - non variable, 1.0 - variable)
+                3: index of retived light curve
+        Raises:
+            AssertationError: if param:self.generated is False
+        pre-state:
+            param:self.lcs is some data
+            param:self.classifcation is some data
+            param:self.state is some integer
+        post-state:
+            if param:state_change is True:
+                param:self.lcs may change to represent the data location retrived
+                param:self.classification may change to represent the data 
+                location retrived
+                if those changes then param:self.state will update to represent that
+        """
 
         try:
             assert self.generated is True
