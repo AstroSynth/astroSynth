@@ -334,7 +334,7 @@ class PVS:
             state_change: whether to allow the object to change what is 
                           loaded into param:self.lcs and 
                           param:self.classification in order that future 
-                          retrivals may not take so many np.load calls
+                          retrivals may not take so many np.load calls (bool)
         Returns:
             Four element Tuple
                 0: Light curve time array
