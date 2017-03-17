@@ -560,7 +560,7 @@ class PVS:
         return out
 
     def get_ft(self, n=0, s=300):
-        Time, Flux, Classification = self.__get_lc__(n)
+        Time, Flux, Classification, o = self.__get_lc__(n)
         FT = Gen_FT(Time, Flux, NyApprox(Time), s)
         return FT['Freq'], FT['Amp'], Classification, n
 
