@@ -385,7 +385,16 @@ class PVS:
                 self.class_dumps[file_num].seek(0, os.SEEK_END)
             return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n
         else:
-            return self.lcs[n - base].T[1], self.lcs[n - base].T[0], self.classification[n - base], n
+            try:
+                return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
+            except IndexError as e:
+                print(f"Error is {e}")
+                print(f"n-base is: {n-base}")
+                print(f"Length of self.lcs is: {len(self.lcs)}")
+                print(f"Length of self.classification is: {len(self.classification)}")
+                print(f"n is: {n}")
+                print(f"base is: {base}")
+                exit()
 
     def xget_lc(self, stop=None, start=0):
         if stop is None:
@@ -564,12 +573,12 @@ class PVS:
         FT = Gen_FT(Time, Flux, NyApprox(Time), s)
         return FT['Freq'], FT['Amp'], Classification, n
 
-    def xget_ft(self, stop=None, s=300):
+    def xget_ft(self, start=0, stop=None, s=300):
         if stop is None:
-            for i in range(self.size):
+            for i in range(start, self.size):
                 yield self.get_ft(n=i, s=s)
         else:
-            for i in range(stop):
+            for i in range(start, stop):
                 yield self.get_ft(n=i, s=s)
 
     def batch_get(self, batch_size=10, ft=False, s=None, mem_size=1e9):
