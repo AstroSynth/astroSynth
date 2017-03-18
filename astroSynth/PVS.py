@@ -559,8 +559,8 @@ class PVS:
         out = '\n'.join(l)
         return out
 
-    def get_ft(self, n=0, s=300):
-        Time, Flux, Classification, o = self.__get_lc__(n)
+    def get_ft(self, n=0, s=300, state_change=False):
+        Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
         FT = Gen_FT(Time, Flux, NyApprox(Time), s)
         return FT['Freq'], FT['Amp'], Classification, n
 
@@ -604,6 +604,7 @@ class PVS:
                                             mem_size=mem_size)
         else:
             for i in range(int(self.size / batch_size)):
+                print(f"Start is: {i * batch_size}, stop is: {(i * batch_size) + batch_size}")
                 yield self.__batch_get_ft__(start = i * batch_size,
                                             stop=(i * batch_size) + batch_size,
                                             s=s, mem_size=mem_size)
@@ -618,9 +619,10 @@ class PVS:
             num = stop
         else:
             num *= step
+            num += start
         out_fts = list()
-        for i in range(start, start + num, step):
-            Freq, Amp, Class, Number = self.get_ft(n=i, s=s)
+        for i in range(start, num, step):
+            Freq, Amp, Class, Number = self.get_ft(n=i, s=s, state_change=True)
             out_fts.append([Freq, Amp, Class, Number])
         return out_fts
 
