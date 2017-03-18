@@ -604,7 +604,6 @@ class PVS:
                                             mem_size=mem_size)
         else:
             for i in range(int(self.size / batch_size)):
-                print(f"Start is: {i * batch_size}, stop is: {(i * batch_size) + batch_size}")
                 yield self.__batch_get_ft__(start = i * batch_size,
                                             stop=(i * batch_size) + batch_size,
                                             s=s, mem_size=mem_size)
