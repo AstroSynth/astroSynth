@@ -56,6 +56,7 @@ class PVS:
         self.classification = np.zeros((0))
         self.temp_file = True
         self.state = -1
+        self.max_amp = 0.1
         if name is not None:
             self.name = name.rstrip()
         else:
@@ -96,7 +97,7 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.3.4 Development')
+        print('Version 0.3.5.1 Development')
 
     def __build_func__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                        freq_range=[1e-7, 1], L_range=[1, 3]):
@@ -244,6 +245,7 @@ class PVS:
         self._seed_generation_(seed)
         self.__build_func__(phase_range=phase_range, amp_range=amp_range,
                             freq_range=freq_range, L_range=L_range)
+        self.max_amp = amp_range[1]
         self.built = True
 
     def generate(self, pfrac=0.1):
@@ -383,18 +385,9 @@ class PVS:
             if self.temp_file is True:
                 self.dumps[file_num].seek(0, os.SEEK_END)
                 self.class_dumps[file_num].seek(0, os.SEEK_END)
-            return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n
+            return tlcs[n - base - 1].T[1], tlcs[n - base - 1].T[0], tclass[n - base - 1], n
         else:
-            try:
-                return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
-            except IndexError as e:
-                print(f"Error is {e}")
-                print(f"n-base is: {n-base}")
-                print(f"Length of self.lcs is: {len(self.lcs)}")
-                print(f"Length of self.classification is: {len(self.classification)}")
-                print(f"n is: {n}")
-                print(f"base is: {base}")
-                exit()
+            return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
 
     def xget_lc(self, stop=None, start=0):
         if stop is None:
@@ -457,6 +450,7 @@ class PVS:
                 out.append('Name:{}'.format(self.name))
                 out.append('Verbose:{}'.format(self.verbose))
                 out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
+                out.append('MAmp:{}'.format(self.max_amp))
                 out = '\n'.join(out)
                 f.write(out)
         else:
@@ -474,6 +468,7 @@ class PVS:
                 out.append('Name:{}'.format(self.name))
                 out.append('Verbose:{}'.format(self.verbose))
                 out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
+                out.append('MAmp:{}'.format(self.max_amp))
                 out = '\n'.join(out)
                 f.write(out)
 
@@ -545,6 +540,8 @@ class PVS:
                 elif i[0] == 'Noise':
                     self.noise_range[0] = float(i[1].rstrip())
                     self.noise_range[1] = float(i[2].rstrip())
+                elif i[0] == 'MAmp':
+                    self.max_amp = float(i[1].rstrip())
         self.generated = True
         self.temp_file = False
 
