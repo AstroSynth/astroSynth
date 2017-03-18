@@ -619,11 +619,17 @@ class PVS:
         else:
             num *= step
             num += start
-        out_fts = list()
+        out_freq = list()
+        out_amp = list()
+        out_class = list()
+        out_number = list()
         for i in range(start, num, step):
             Freq, Amp, Class, Number = self.get_ft(n=i, s=s, state_change=True)
-            out_fts.append([Freq, Amp, Class, Number])
-        return out_fts
+            out_freq.append(Freq)
+            out_amp.append(Amp)
+            out_class.append(Class)
+            out_number.append(Number)
+        return out_freq, out_amp, out_class, out_number
 
     def __batch_get_lc__(self, start=0, mem_size=1e9, step=1,
                          stop=None):
@@ -636,12 +642,18 @@ class PVS:
         else:
             num *= step
             num += start
-        out_lcs = list()
+        out_time = list()
+        out_flux = list()
+        out_class = list()
+        out_number = list()
         for j in range(start, num , step):
             Time, Flux, Class, Number = self.__get_lc__(n=j, state_change=True)
-            out_lcs.append([Time, Flux, Class, Number])
+            out_time.append(Time)
+            out_flux.append(Flux)
+            out_class.append(Class)
+            out_number.append(Number)
         j = 0
-        return out_lcs
+        return out_time, out_flux, out_class, out_number
 
     def __getitem__(self, key):
         if isinstance(key, int):
