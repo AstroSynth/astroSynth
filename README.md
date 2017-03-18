@@ -1,5 +1,5 @@
 # astroSynth
-Version: 0.3.4.2 - ALPHA <br>
+Version: 0.3.5 - ALPHA <br>
 A very basic synthetic generation suite
 
 # Installation
