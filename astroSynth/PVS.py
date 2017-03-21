@@ -19,7 +19,7 @@ Description:
 class PVS:
     def __init__(self, Number=100, noise_range=[0.1, 1.1], vmod=True,
                  f=lambda x: np.sin(x), numpoints=100, mag_range=[6, 20],
-                 verbose=0, name=None):
+                 verbose=0, name=None, dpbar=False, lpbar=True):
         """
         PVS Initilization
 
@@ -38,6 +38,8 @@ class PVS:
                      object (0 - default, 1 - add dump info, 2 - add stored 
                      data)
             name: Name of object to use as directory name when saving object
+            dpbar: Diable progress bars class wide (bool)
+            lpbar: leave progress bars after completion class wide (bool)
         Returnes:
             Fully formed PVS() type object, ready to build-generate or to 
             load data
@@ -57,6 +59,8 @@ class PVS:
         self.temp_file = True
         self.state = -1
         self.max_amp = 0.1
+        self.dpbar = dpbar
+        self.lpbar = lpbar
         if name is not None:
             self.name = name.rstrip()
         else:
@@ -138,7 +142,8 @@ class PVS:
                 param:self.f dictionaty filled with functional forms
         """
         if self.vmod is True:
-            for i in tqdm(range(self.size), desc='Building Light Curve Functional Form'):
+            for i in tqdm(range(self.size), desc='Building Light Curve Functional Form',
+                          leave=self.lpbar, disable=self.dpbar):
                 kwargs = dict()
                 kwargs['num'] = np.random.randint(L_range[0],
                                                   L_range[1] + 1)
@@ -293,7 +298,8 @@ class PVS:
         last_dump = 0
         self.generated = True
         list_lcs = list()
-        for i in tqdm(range(self.size), desc='Geneating Light Curves'):
+        for i in tqdm(range(self.size), desc='Geneating Light Curves',
+                      leave=self.lpbar, disable=self.dpbar):
             rand_pick = np.random.uniform(0, 10)
             if rand_pick < pfrac * 10:
                 pulsator = True
