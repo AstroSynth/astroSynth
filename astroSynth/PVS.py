@@ -3,8 +3,10 @@ import numpy as np
 from tqdm import tqdm
 from sys import getsizeof
 from tempfile import TemporaryFile
+import tempfile
 import os
 import shutil
+import time
 
 
 """
@@ -19,7 +21,7 @@ Description:
 class PVS:
     def __init__(self, Number=100, noise_range=[0.1, 1.1], vmod=True,
                  f=lambda x: np.sin(x), numpoints=100, mag_range=[6, 20],
-                 verbose=0, name=None, dpbar=False, lpbar=True):
+                 verbose=0, name=None, dpbar=False, lpbar=True, ftemp=False):
         """
         PVS Initilization
 
@@ -40,6 +42,7 @@ class PVS:
             name: Name of object to use as directory name when saving object
             dpbar: Diable progress bars class wide (bool)
             lpbar: leave progress bars after completion class wide (bool)
+            ftemp: Turn the object into a fully temporary object (bool)
         Returnes:
             Fully formed PVS() type object, ready to build-generate or to 
             load data
@@ -61,6 +64,7 @@ class PVS:
         self.max_amp = 0.1
         self.dpbar = dpbar
         self.lpbar = lpbar
+        self.ftemp = ftemp
         if name is not None:
             self.name = name.rstrip()
         else:
@@ -401,7 +405,7 @@ class PVS:
         for i in range(start, stop):
             yield self.__get_lc__(n=i)
 
-    def save(self):
+    def save(self, path=None):
         try:
             assert self.generated is True
         except AssertionError as e:
@@ -409,10 +413,26 @@ class PVS:
                        'have you run PVS.generate()?')
             raise
 
-        path = "{}/{}".format(os.getcwd(), self.name)
-        if os.path.exists(path):
-            shutil.rmtree(path)
-        os.mkdir(path)
+        if path is None:
+            if self.name is not None:
+                if self.ftemp is False:
+                    path = "{}/{}".format(os.getcwd(), self.name)
+                    if os.path.exists(path):
+                        shutil.rmtree(path)
+                    os.mkdir(path)
+                elif self.ftemp is True:
+                    path = "{}/.{}_temp".format(os.getcwd(), self.name)
+                    if os.path.exists(path):
+                        shutil.rmtree(path)
+                    os.mkdir(path)
+            else:
+                if self.ftemp is False:
+                    path = os.getcwd()
+                elif self.ftemp is True:
+                    path = "{}/.{}_temp".format(os.getcwd(), time.asctime().replace(' ', '_'))
+                    if os.path.exists(path):
+                        shutil.rmtree(path)
+                    os.mkdir(path)
 
         for dump, cdump in zip(self.dumps, self.class_dumps):
             self.dumps[dump].seek(0)
@@ -421,62 +441,39 @@ class PVS:
             tclass = np.load(self.class_dumps[cdump])
             self.dumps[dump].seek(0, os.SEEK_END)
             self.class_dumps[cdump].seek(0, os.SEEK_END)
-            if self.name is not None:
-                np.save("{}/LightCurve_{}.npy".format(path, dump), tlc)
-                np.save("{}/LightCurve_Class_{}.npy".format(path, dump), tclass)
-            else:
-                np.save("{}/LightCurve_{}.npy".format(os.getcwd(), dump), tlc)
-                np.save("{}/LightCurve_Class_{}.npy".format(os.getcwd(), dump), tclass)
+            np.save("{}/LightCurve_{}.npy".format(path, dump), tlc)
+            np.save("{}/LightCurve_Class_{}.npy".format(path, dump), tclass)
 
         if len(self.lcs > 0):
-            if self.name is not None:
-                np.save("{}/LightCurve_{}.npy".format(path, -1), self.lcs)
-                np.save("{}/LightCurve_Class_{}.npy".format(path, -1), self.classification)
-            else:
-                np.save("{}/LightCurve_{}.npy".format(os.getcwd(), -1), self.lcs)
-                np.save("{}/LightCurve_Class_{}.npy".format(os.getcwd(), -1), self.classification)
+            np.save("{}/LightCurve_{}.npy".format(path, -1), self.lcs)
+            np.save("{}/LightCurve_Class_{}.npy".format(path, -1), self.classification)
 
-        self._save_model_()
+        self._save_model_(path=path)
+        return path
 
-    def _save_model_(self):
-        if self.name is not None:
-            path = "{}/{}".format(os.getcwd(), self.name)
-            if not os.path.exists(path):
-                os.mkdir(path)
-            with open('{}/item_loc_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                for i in self.item_ref:
-                    out.append("{}:{}:{}".format(i, self.item_ref[i][0], self.item_ref[i][1]))
-                out = '\n'.join(out)
-                f.write(out)
-            with open('{}/object_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                out.append('Size:{}'.format(self.size))
-                out.append('Depth:{}'.format(self.depth))
-                out.append('Name:{}'.format(self.name))
-                out.append('Verbose:{}'.format(self.verbose))
-                out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
-                out.append('MAmp:{}'.format(self.max_amp))
-                out = '\n'.join(out)
-                f.write(out)
-        else:
-            path = os.getcwd()
-            with open('{}/item_loc_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                for i in self.item_ref:
-                    out.append("{}:{}:{}".format(i, self.item_ref[i][0], self.item_ref[i][1]))
-                out = '\n'.join(out)
-                f.write(out)
-            with open('{}/object_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                out.append('Size:{}'.format(self.size))
-                out.append('Depth:{}'.format(self.depth))
-                out.append('Name:{}'.format(self.name))
-                out.append('Verbose:{}'.format(self.verbose))
-                out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
-                out.append('MAmp:{}'.format(self.max_amp))
-                out = '\n'.join(out)
-                f.write(out)
+    def _save_model_(self, path = None):
+        try:
+            assert path is not None
+        except AssertionError as e:
+            e.args += ('No Save path set in _save_model_', 'Has path been set?')
+            raise
+
+        with open('{}/item_loc_meta.PVS'.format(path), 'w') as f:
+            out = list()
+            for i in self.item_ref:
+                out.append("{}:{}:{}".format(i, self.item_ref[i][0], self.item_ref[i][1]))
+            out = '\n'.join(out)
+            f.write(out)
+        with open('{}/object_meta.PVS'.format(path), 'w') as f:
+            out = list()
+            out.append('Size:{}'.format(self.size))
+            out.append('Depth:{}'.format(self.depth))
+            out.append('Name:{}'.format(self.name))
+            out.append('Verbose:{}'.format(self.verbose))
+            out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
+            out.append('MAmp:{}'.format(self.max_amp))
+            out = '\n'.join(out)
+            f.write(out)
 
     def load(self, directory='.', start=-1):
         files = os.listdir(directory)

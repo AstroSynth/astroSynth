@@ -1,4 +1,5 @@
 import os
+import time
 import names
 import shutil
 import numpy as np
@@ -25,6 +26,8 @@ class POS():
 		self.targets = dict()
 		self.int_name_ref = dict()
 		self.classes = dict()
+		self.target_ref = dict()
+		self.dumps = dict()
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -83,7 +86,8 @@ class POS():
 			target_id = "{}_{}".format(self.prefix, target_name)
 			self.targets[target_id] = PVS(Number=observations, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
-				                          mag_range=self.mag_range, name=target_id, lpbar=False)
+				                          mag_range=self.mag_range, name=target_id, 
+				                          lpbar=False, ftemp=True)
 			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
 										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
 										  phase_range=[pulsation_phase - ppp, pulsation_phase + ppp],
@@ -121,12 +125,32 @@ class POS():
 							  obs_range=obs_range)
 
 	def generate(self, pfrac=0.5):
-		for i in tqdm(self.targets, desc='Geneating Survey Data', total=self.size):
+		dumpnum = 0
+		lastdump = 0
+		for j, i in tqdm(enumerate(self.targets), desc='Geneating Survey Data', total=self.size):
 			rand_pick = np.random.uniform(0, 10)
 			if rand_pick < pfrac * 10:
 				self.classes[i] = 1
 			else:
 				self.classes[i] = 0
-
 			self.targets[i].generate(pfrac=self.classes[i])
+			if j-lastdump >= 100:
+				path_a = "{}/.{}_temp".format(os.getcwd(), self.prefix)
+				if os.path.exists(path_a):
+					shutil.rmtree(path_a)
+				os.mkdir(path_a)
+				path = "{}/.{}_temp/{}_dump".format(os.getcwd(), self.prefix, dumpnum)
+				os.mkdir(path)
+				for k, x in enumerate(self.targets):
+					if k < j-lastdump: 
+						print ('X is: {}, k is: {}, j-lastdump is: {}, j is: {}'.format(x, k, j-lastdump, j))
+						star_path = "{}/{}_star".format(path, x)
+						os.mkdir(star_path)
+						print('Path is: {}'.format("{}_{}_star".format(path, x)))
+						self.targets[x].save(path=star_path)
+				self.target_ref[dumpnum] = [lastdump, len(self.targets) + lastdump]
+				self.dumps[dumpnum] = []
+				dumpnum += 1
+				lastdump = j
+				self.targets = dict()
 		print('Size of targets is: {}'.format(getsizeof(self.targets)))
