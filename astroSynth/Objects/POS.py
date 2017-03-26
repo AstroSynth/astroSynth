@@ -89,7 +89,7 @@ class POS():
 			self.targets[target_id] = PVS(Number=observations, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
-				                          lpbar=False, ftemp=True)
+				                          lpbar=False, ftemp=True, match_phase=True, ivist=[0.1, 10])
 
 			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
 										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
@@ -160,8 +160,9 @@ class POS():
 	def __load_dump__(self, n=0, state_change=True):
 		if state_change is True:
 			self.targets = dict()
+			self.state = n
 		else:
-			ttargets = dict
+			ttargets = dict()
 		try:
 			assert n >= -1 and n < len(self.dumps)
 		except AssertionError as e:
@@ -179,6 +180,8 @@ class POS():
 				ttargets[target].load(load_path)
 		if state_change is False:
 			return ttargets
+		else:
+			return 0
 
 	def __get_target_lc__(self, target=0, n=0, state_change=False):
 		if isinstance(target, int):
@@ -211,16 +214,58 @@ class POS():
 			target_num = self.name_int_ref[target_id]
 
 		dump_num = -1
-		for k in self.item_ref:
+		for k in self.target_ref:
 			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
 				dump_num = int(k)
 				break
 
 		if dump_num != self.state:
-			self.__load_dump__(n=dump_num)
+			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
+			if state_change is False:
+				Time, Flux, Class, n = pull_from[target_id][n]
+			else:
+				Time, Flux, Class, n = self.targets[target_id][n]
+		else:
+			Time, Flux, Class, n = self.targets[target_id][n]
 
+		return Time, Flux, Class, n, target_id
+
+	def save(self, path=None):
+		if path is None:
+			path = "{}/{}".format(os.getcwd(), self.name)
+		if os.path.exists(path):
+			shutil.rmtree(path)
+		os.mkdir(path)
+		for dump in self.dumps:
+			group_path = "{}/Group_{}".format(path, dump)
+			if os.path.exists(group_path):
+				shutil.rmtree(group_path)
+			os.mkdir(group_path)
+			data = self.__load_dump__(n=dump, state_change=False)
+			for target in data:
+				target_save_path = "{}/{}".format(group_path, target)
+				if os.path.exists(target_save_path):
+					shutil.rmtree(target_save_path)
+				os.mkdir(target_save_path)
+				data[target].save(path=target_save_path)
+				print('Target from Dumps: {}'.format(target))
+		mem_path = "{}/Group_-1".format(path)
+		if os.path.exists(mem_path):
+			shutil.rmtree(mem_path)
+		os.mkdir(mem_path)	
+		for target in self.targets:
+			if self.targets[target] is not None:
+				target_save_path = "{}/{}".format(mem_path, target)
+				if os.path.exists(target_save_path):
+					shutil.rmtree(target_save_path)
+				os.mkdir(target_save_path)
+				print('Target from Memory: {}'.format(target))
+				print('Target: {}, Target Class: {}'.format(target, self.classes[target]))
+				print('targets are: {}'.format(self.targets))
+				self.targets[target].save(path=target_save_path)
 
 
 	def __del__(self):
 		path = "{}/.{}_temp".format(os.getcwd(), self.prefix)
-		# shutil.rmtree(path)
+		if os.path.exists(path):
+			shutil.rmtree(path)

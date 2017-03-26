@@ -7,7 +7,7 @@ import tempfile
 import os
 import shutil
 import time
-
+import math
 
 """
 PVS (Pulsating Variable Star)- Class
@@ -21,7 +21,8 @@ Description:
 class PVS:
     def __init__(self, Number=100, noise_range=[0.1, 1.1], vmod=True,
                  f=lambda x: np.sin(x), numpoints=100, mag_range=[6, 20],
-                 verbose=0, name=None, dpbar=False, lpbar=True, ftemp=False):
+                 verbose=0, name=None, dpbar=False, lpbar=True, ftemp=False,
+                 match_phase=False, ivist=[0.1, 10]):
         """
         PVS Initilization
 
@@ -35,7 +36,7 @@ class PVS:
                (python function)
             numpoints: The number of points to generate per light curve (int)
             mag_range: The magnitude range of stars to generate light curves 
-                       from (2-element floar list) [Not currently used]
+                       from (2-element float list) [Not currently used]
             verbose: the verbosity which with to use when representing the 
                      object (0 - default, 1 - add dump info, 2 - add stored 
                      data)
@@ -43,6 +44,10 @@ class PVS:
             dpbar: Diable progress bars class wide (bool)
             lpbar: leave progress bars after completion class wide (bool)
             ftemp: Turn the object into a fully temporary object (bool)
+            match_phase: Match the pases of all observations based on 
+                         intervisit time (bool)
+            ivisit: List which defines the length bounds between 
+                    observations (2-element float list)
         Returnes:
             Fully formed PVS() type object, ready to build-generate or to 
             load data
@@ -65,6 +70,9 @@ class PVS:
         self.dpbar = dpbar
         self.lpbar = lpbar
         self.ftemp = ftemp
+        self.match_phase = match_phase
+        self.phasing = dict()
+        self.dumps_are_temp = True
         if name is not None:
             self.name = name.rstrip()
         else:
@@ -77,6 +85,11 @@ class PVS:
             self.f = f
             self.built = True
             self.vmod = False
+
+        if self.match_phase is True:
+            self.ivist = self.__list_check__(ivist)
+        else:
+            self.ivist = None
 
     @staticmethod
     def _seed_generation_(seed=1):
@@ -145,15 +158,30 @@ class PVS:
                 param:self.kwargs dicitonary filled with parameters for funational form
                 param:self.f dictionaty filled with functional forms
         """
+        if self.match_phase is True:
+            break_size = np.random.uniform(self.ivist[0],
+                                           self.ivist[1],
+                                           self.size)
         if self.vmod is True:
             for i in tqdm(range(self.size), desc='Building Light Curve Functional Form',
                           leave=self.lpbar, disable=self.dpbar):
                 kwargs = dict()
                 kwargs['num'] = np.random.randint(L_range[0],
                                                   L_range[1] + 1)
-                kwargs['phase'] = np.random.uniform(phase_range[0],
-                                                    phase_range[1],
-                                                    kwargs['num'])
+                if self.match_phase is True:
+                    if i == 0:
+                        kwargs['phase'] = np.random.uniform(phase_range[0],
+                                                            phase_range[1],
+                                                            kwargs['num'])
+                    else:
+                        cont_phase = list()
+                        for p, f in zip(prev_phasing, prev_frequency):
+                            cont_phase.append(p + np.pi * math.modf((break_size[i] * f))[0])
+                        kwargs['phase'] = cont_phase
+                else:
+                    kwargs['phase'] = np.random.uniform(phase_range[0],
+                                                        phase_range[1],
+                                                        kwargs['num'])
                 kwargs['amp'] = np.random.uniform(amp_range[0],
                                                   amp_range[1],
                                                   kwargs['num'])
@@ -161,6 +189,8 @@ class PVS:
                                                    freq_range[1],
                                                    kwargs['num'])
                 self.kwargs[i] = kwargs
+                prev_phasing = kwargs['phase']
+                prev_frequency = kwargs['freq']
                 self.f[i] = lambda x, d: self.__mode_addition__(x, **d)
     @staticmethod
     def __mode_addition__(x, num=1, phase=[0], amp=[1], freq=[1]):
@@ -209,6 +239,21 @@ class PVS:
 
         return fout
 
+    def __list_check__(self, l):
+        if isinstance(l, list):
+            return l
+        else:
+            return [l, l]
+
+    def __params_2_list__(self, phase_values, amp_values,
+                        freq_values, L_values):
+        phase = self.__list_check__(phase_values)
+        amp = self.__list_check__(amp_values)
+        freq = self.__list_check__(freq_values)
+        L = self.__list_check__(L_values)
+
+        return phase, amp, freq, L
+
     def build(self, phase_range=[0, np.pi], amp_range=[0, 1],
               freq_range=[1e-7, 1], L_range=[1, 3], seed=1):
         """
@@ -251,6 +296,10 @@ class PVS:
                 param:self.f dictionaty filled with functional forms
             param:self.built is True
         """
+        phase_range, amp_range, freq_range, L_range = self.__params_2_list__(phase_values=phase_range,
+                                                                             freq_values=freq_range,
+                                                                             amp_values=amp_range,
+                                                                             L_values=L_range)
         self._seed_generation_(seed)
         self.__build_func__(phase_range=phase_range, amp_range=amp_range,
                             freq_range=freq_range, L_range=L_range)
@@ -322,6 +371,7 @@ class PVS:
                                         noise_range=self.noise_range)
             list_lcs.append(tlc)
             if getsizeof(list_lcs) > 1e5:
+                self.dumps_are_temp = True
                 self.dumps[dump_num] = TemporaryFile()
                 self.class_dumps[dump_num] = TemporaryFile()
                 self.item_ref[dump_num] = [last_dump, len(list_lcs) + last_dump]
@@ -406,7 +456,7 @@ class PVS:
         for i in range(start, stop):
             yield self.__get_lc__(n=i)
 
-    def save(self, path=None):
+    def save(self, path=None, ftemp_override=False):
         try:
             assert self.generated is True
         except AssertionError as e:
@@ -416,40 +466,44 @@ class PVS:
 
         if path is None:
             if self.name is not None:
-                if self.ftemp is False:
+                if self.ftemp is False or ftemp_override is True:
                     path = "{}/{}".format(os.getcwd(), self.name)
                     if os.path.exists(path):
                         shutil.rmtree(path)
                     os.mkdir(path)
-                elif self.ftemp is True:
+                elif self.ftemp is True and ftemp_override is False:
                     path = "{}/.{}_temp".format(os.getcwd(), self.name)
                     if os.path.exists(path):
                         shutil.rmtree(path)
                     os.mkdir(path)
             else:
-                if self.ftemp is False:
+                if self.ftemp is False or ftemp_override is True:
                     path = os.getcwd()
-                elif self.ftemp is True:
+                elif self.ftemp is True and ftemp_override is False:
                     path = "{}/.{}_temp".format(os.getcwd(), time.asctime().replace(' ', '_'))
                     if os.path.exists(path):
                         shutil.rmtree(path)
                     os.mkdir(path)
-
+        print('Overall Dump is: {}'.format(self.dumps))
         for dump, cdump in zip(self.dumps, self.class_dumps):
-            self.dumps[dump].seek(0)
-            self.class_dumps[cdump].seek(0)
-            tlc = np.load(self.dumps[dump])
-            tclass = np.load(self.class_dumps[cdump])
-            self.dumps[dump].seek(0, os.SEEK_END)
-            self.class_dumps[cdump].seek(0, os.SEEK_END)
-            np.save("{}/LightCurve_{}.npy".format(path, dump), tlc)
-            np.save("{}/LightCurve_Class_{}.npy".format(path, dump), tclass)
+            if dump != -1:
+                if self.dumps_are_temp is True:
+                    self.dumps[dump].seek(0)
+                    self.class_dumps[cdump].seek(0)
+                tlc = np.load(self.dumps[dump])
+                tclass = np.load(self.class_dumps[cdump])
+                if self.dumps_are_temp is True:
+                    self.dumps[dump].seek(0, os.SEEK_END)
+                    self.class_dumps[cdump].seek(0, os.SEEK_END)
+                np.save("{}/LightCurve_{}.npy".format(path, dump), tlc)
+                np.save("{}/LightCurve_Class_{}.npy".format(path, dump), tclass)
 
         if len(self.lcs > 0):
             np.save("{}/LightCurve_{}.npy".format(path, -1), self.lcs)
             np.save("{}/LightCurve_Class_{}.npy".format(path, -1), self.classification)
 
         self._save_model_(path=path)
+        self.dumps_are_temp = False
         return path
 
     def _save_model_(self, path = None):
