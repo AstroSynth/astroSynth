@@ -254,6 +254,7 @@ class PVS:
         self._seed_generation_(seed)
         self.__build_func__(phase_range=phase_range, amp_range=amp_range,
                             freq_range=freq_range, L_range=L_range)
+
         self.max_amp = amp_range[1]
         self.built = True
 

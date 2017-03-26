@@ -25,9 +25,11 @@ class POS():
 		self.noise_range = noise_range
 		self.targets = dict()
 		self.int_name_ref = dict()
+		self.name_int_ref = dict()
 		self.classes = dict()
 		self.target_ref = dict()
 		self.dumps = dict()
+		self.state = -1
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -65,18 +67,18 @@ class POS():
 				                                L_range[1] + 1)
 
 			pulsation_amp = np.random.uniform(amp_range[0],
-				                              amp_range[1],
-				                              pulsation_modes)
+				                              amp_range[1])#,
+				                              #pulsation_modes)
 			pap = amp_varience * pulsation_amp
 
 			pulsation_frequency = np.random.uniform(freq_range[0],
-				                                    freq_range[1],
-				                                    pulsation_modes)
+				                                    freq_range[1])#,
+				                                    #pulsation_modes)
 			pfp = freq_varience * pulsation_frequency
 
 			pulsation_phase = np.random.uniform(phase_range[0],
-		    	                                phase_range[1],
-		    	                                pulsation_modes)
+		    	                                phase_range[1])#,
+		    	                                #pulsation_modes)
 			ppp = phase_varience * pulsation_phase
 
 			observations = np.random.randint(obs_range[0],
@@ -88,10 +90,13 @@ class POS():
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
 				                          lpbar=False, ftemp=True)
+
 			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
 										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
 										  phase_range=[pulsation_phase - ppp, pulsation_phase + ppp],
 										  L_range=[pulsation_modes, pulsation_modes])
+			self.int_name_ref[i] = target_id
+			self.name_int_ref[target_id] = i
 
 
 	def build(self, load_from_file = False, path=None, amp_range=[0, 0.2], 
@@ -124,7 +129,7 @@ class POS():
 							  phase_varience=phase_varience, freq_varience=freq_varience,
 							  obs_range=obs_range)
 
-	def generate(self, pfrac=0.5):
+	def generate(self, pfrac=0.5, target_in_mem=100):
 		dumpnum = 0
 		lastdump = 0
 		for j, i in tqdm(enumerate(self.targets), desc='Geneating Survey Data', total=self.size):
@@ -134,7 +139,7 @@ class POS():
 			else:
 				self.classes[i] = 0
 			self.targets[i].generate(pfrac=self.classes[i])
-			if j-lastdump >= 100:
+			if j-lastdump >= target_in_mem:
 				path_a = "{}/.{}_temp".format(os.getcwd(), self.prefix)
 				if os.path.exists(path_a):
 					shutil.rmtree(path_a)
@@ -143,14 +148,79 @@ class POS():
 				os.mkdir(path)
 				for k, x in enumerate(self.targets):
 					if k < j-lastdump: 
-						print ('X is: {}, k is: {}, j-lastdump is: {}, j is: {}'.format(x, k, j-lastdump, j))
-						star_path = "{}/{}_star".format(path, x)
+						star_path = "{}/{}".format(path, x)
 						os.mkdir(star_path)
-						print('Path is: {}'.format("{}_{}_star".format(path, x)))
 						self.targets[x].save(path=star_path)
-				self.target_ref[dumpnum] = [lastdump, len(self.targets) + lastdump]
-				self.dumps[dumpnum] = []
+						self.targets[x] = None
+				self.target_ref[dumpnum] = [lastdump, target_in_mem + lastdump]
+				self.dumps[dumpnum] = path
 				dumpnum += 1
 				lastdump = j
-				self.targets = dict()
-		print('Size of targets is: {}'.format(getsizeof(self.targets)))
+
+	def __load_dump__(self, n=0, state_change=True):
+		if state_change is True:
+			self.targets = dict()
+		else:
+			ttargets = dict
+		try:
+			assert n >= -1 and n < len(self.dumps)
+		except AssertionError as e:
+			e.args += ('ERROR! Dump index {} out of range for dump of size {}'.format(n, len(self.dumps)))
+			raise
+		dump_path = self.dumps[n]
+		load_targets = os.listdir(dump_path)
+		for target in load_targets:
+			load_path = "{}/{}".format(dump_path, target)
+			if state_change is True:
+				self.targets[target] = PVS()
+				self.targets[target].load(load_path)
+			else:
+				ttargets[target] = PVS()
+				ttargets[target].load(load_path)
+		if state_change is False:
+			return ttargets
+
+	def __get_target_lc__(self, target=0, n=0, state_change=False):
+		if isinstance(target, int):
+			try:
+				assert target < len(self.targets)
+			except AssertionError as e:
+				e.args += ('ERROR!, Target Index Out Of Range')
+				raise
+			try:
+				assert n < len(self.targets)
+			except AssertionError as e:
+				e.args += ('ERROR! Target Light Curve index out of range')
+				raise
+
+			target_id = self.int_name_ref[n]
+			target_num = target
+		elif isinstance(target, str):
+			try:
+				assert target in self.targets
+			except AssertionError as e:
+				e.args('Error! Target Index not found in targets reference')
+				raise
+			try:
+				assert n < len(self.targets)
+			except AssertionError as e:
+				e.args += ('ERROR! Target Light Curve index out of range')
+				raise
+
+			target_id = target
+			target_num = self.name_int_ref[target_id]
+
+		dump_num = -1
+		for k in self.item_ref:
+			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
+				dump_num = int(k)
+				break
+
+		if dump_num != self.state:
+			self.__load_dump__(n=dump_num)
+
+
+
+	def __del__(self):
+		path = "{}/.{}_temp".format(os.getcwd(), self.prefix)
+		# shutil.rmtree(path)
