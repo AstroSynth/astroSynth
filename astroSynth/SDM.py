@@ -4,6 +4,7 @@ from scipy.signal import lombscargle
 import math
 import random as r
 from tqdm import tqdm
+import astropy.units as u
 """
 Description:
     General Helper functions for light curve and fourier analysis
@@ -238,8 +239,7 @@ def Make_LC(noise_level=0, f=lambda x: np.sin(x), mag=10, numpoints=100,
     return pd.DataFrame(data=data)
 
 
-def Insert_Break(data, break_size=0, break_period=0,
-                 break_size_randomizer=0.5, break_period_randomizer=0.5,
+def Insert_Break(data, break_size_range=[0.1, 10], break_period_range=[1, 25],
                  time_col='Time', Flux_col='Flux'):
     """
     Description:
@@ -262,38 +262,66 @@ def Insert_Break(data, break_size=0, break_period=0,
     Raises:
         N/A
     """
-    if break_period != 0 and break_size != 0:
-        bs_random = r.uniform(0, break_size_randomizer)
-        bs_random -= break_size_randomizer / 2.0
-        break_size += bs_random
-        bp_random = r.uniform(0, break_period_randomizer)
-        bp_random -= break_period_randomizer / 2.0
-        break_period += bp_random
-        key_index = data[time_col][0]
-        in_break = False
-        starts = [0]
-        ends = []
-        for i, e in enumerate(data[time_col]):
-            if in_break is False and e - key_index >= break_period:
-                key_index = e
-                in_break = True
-                ends.append(i)
-            if in_break is True and e - key_index >= break_size:
-                key_index = e
-                in_break = False
-                starts.append(i)
-        if len(starts) != len(ends):
-            ends.append(len(data[time_col]))
-        visits = [None] * len(starts)
-        for k, (i, j) in enumerate(zip(starts, ends)):
-            visits[k] = data.iloc[i:j]
-        return visits
-    else:
-        return [data]
+    break_size = np.random.uniform(break_size_range[1], break_size_range[0])
+    break_period = np.random.uniform(break_period_range[0], break_period_range[1])
+    key_index = data[time_col][0]
+    in_break = False
+    starts = [0]
+    ends = []
+    for i, e in enumerate(data[time_col]):
+        if in_break is False and e - key_index >= break_period:
+            key_index = e
+            in_break = True
+            ends.append(i)
+            break_size = np.random.uniform(break_size_range[1], break_size_range[0])
+            break_period = np.random.uniform(break_period_range[0], break_period_range[1])
+        if in_break is True and e - key_index >= break_size:
+            key_index = e
+            in_break = False
+            starts.append(i)
+    if len(starts) != len(ends):
+        ends.append(len(data[time_col]))
+    visits = [None] * len(starts)
+    times = [None] * len(starts)
+    for k, (i, j) in enumerate(zip(starts, ends)):
+        visits[k] = data[Flux_col][i:j]
+        times[k] = data[time_col][i:j]
+    return visits, times, starts, ends
 
+def make_visits(data, visit_range=[0, 10], visit_size_range=[10, 100],
+                break_size_range=[10, 100], exposure_time=30, etime_units=u.second,
+                btime_units=u.hour, vtime_units=u.hour):
+    unorm_break_size_range = [(x*btime_units).to(etime_units).value for x in break_size_range]
+    unorm_visit_size_range = [(x*vtime_units).to(etime_units).value for x in visit_size_range]
+    break_size_range = [int(x/exposure_time) for x in unorm_break_size_range]
+    visit_size_range = [int(x/exposure_time) for x in unorm_visit_size_range]
+    num_visits = np.random.randint(visit_range[0], visit_range[1])
+    num_breaks = num_visits - 1
+    visit_length = np.random.randint(visit_size_range[0], visit_size_range[1], num_visits)
+    break_length = np.random.randint(break_size_range[0], break_size_range[1], num_breaks)
+    integration_time = sum(visit_length)
+    values = list()
+    times = list()
+    prev = 0
+    if len(break_length) is not 0:
+        for visit, lbreak in tqdm(zip(visit_length, break_length), total=num_breaks):
+            if not visit+prev >= len(data[0]):
+                # ttime = np.linspace(tprev, t_bin*(prev+visit), visit)
+                values.append(data[1][prev:prev+visit])
+                times.append(data[0][prev:prev+visit])
+                # times.append(ttime)
+                prev = prev+visit+lbreak
+                # tprev = t_bin*(prev+visit+lbreak)
+            else:
+                values.append(data[1][prev:])
+                times.append(data[0][prev:])
+    else:
+        values.append(data[1])
+        times.append(data[0])
+    return times, values, integration_time
 
 def Make_Syth_LCs(noise_range=[0.1, 1.1], f=lambda x: np.sin(x),
-                  pulsator=True, numpoints=100):
+                  pulsator=True, numpoints=100, start_time=0, end_time=0):
     """
     Description:
         More abstract caller for Make_lc() wich allows for non 
@@ -314,10 +342,12 @@ def Make_Syth_LCs(noise_range=[0.1, 1.1], f=lambda x: np.sin(x),
     """
     noise = r.uniform(noise_range[0], noise_range[1])
     if pulsator is True:
-        lcs = Make_LC(noise_level=noise * 2.5, f=f, numpoints=numpoints)
+        lcs = Make_LC(noise_level=noise * 2.5, f=f, numpoints=numpoints,
+                      start_time=start_time, end_time=end_time)
     else:
         lcs = Make_LC(noise_level=noise * 2.5, f=lambda x: 0,
-                      numpoints=numpoints)
+                      numpoints=numpoints, start_time=start_time,
+                      end_time=end_time)
     return lcs.as_matrix().tolist()
 
 

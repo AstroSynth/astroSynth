@@ -89,7 +89,7 @@ class POS():
 			self.targets[target_id] = PVS(Number=observations, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
-				                          lpbar=False, ftemp=True, match_phase=True, ivist=[0.1, 10])
+				                          lpbar=False, ftemp=True, single_object=True)
 
 			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
 										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
@@ -97,6 +97,12 @@ class POS():
 										  L_range=[pulsation_modes, pulsation_modes])
 			self.int_name_ref[i] = target_id
 			self.name_int_ref[target_id] = i
+
+	def __get_break_params__(self, break_number_range=[0, 10]):
+		"""
+		Currently Experimental
+		"""
+		return ([], []), ([], [])
 
 
 	def build(self, load_from_file = False, path=None, amp_range=[0, 0.2], 
@@ -152,10 +158,11 @@ class POS():
 						os.mkdir(star_path)
 						self.targets[x].save(path=star_path)
 						self.targets[x] = None
-				self.target_ref[dumpnum] = [lastdump, target_in_mem + lastdump]
+				self.target_ref[dumpnum] = [lastdump, target_in_mem + lastdump - 1]
 				self.dumps[dumpnum] = path
 				dumpnum += 1
 				lastdump = j
+		self.target_ref[-1] = [lastdump, self.size - 1]
 
 	def __load_dump__(self, n=0, state_change=True):
 		if state_change is True:
@@ -186,14 +193,9 @@ class POS():
 	def __get_target_lc__(self, target=0, n=0, state_change=False):
 		if isinstance(target, int):
 			try:
-				assert target < len(self.targets)
+				assert target < self.size
 			except AssertionError as e:
 				e.args += ('ERROR!, Target Index Out Of Range')
-				raise
-			try:
-				assert n < len(self.targets)
-			except AssertionError as e:
-				e.args += ('ERROR! Target Light Curve index out of range')
 				raise
 
 			target_id = self.int_name_ref[n]
@@ -221,11 +223,18 @@ class POS():
 
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
+			print('Targets are: {}'.format(self.targets))
+			try:
+				assert n < len(self.targets[self.int_name_ref[target]])
+			except AssertionError as e:
+				e.args += ('ERROR! Target Light Curve index out of range')
+				raise
 			if state_change is False:
 				Time, Flux, Class, n = pull_from[target_id][n]
 			else:
 				Time, Flux, Class, n = self.targets[target_id][n]
 		else:
+			print('Targets are: {}'.format(self.targets))
 			Time, Flux, Class, n = self.targets[target_id][n]
 
 		return Time, Flux, Class, n, target_id
@@ -248,7 +257,6 @@ class POS():
 					shutil.rmtree(target_save_path)
 				os.mkdir(target_save_path)
 				data[target].save(path=target_save_path)
-				print('Target from Dumps: {}'.format(target))
 		mem_path = "{}/Group_-1".format(path)
 		if os.path.exists(mem_path):
 			shutil.rmtree(mem_path)
@@ -259,11 +267,104 @@ class POS():
 				if os.path.exists(target_save_path):
 					shutil.rmtree(target_save_path)
 				os.mkdir(target_save_path)
-				print('Target from Memory: {}'.format(target))
-				print('Target: {}, Target Class: {}'.format(target, self.classes[target]))
-				print('targets are: {}'.format(self.targets))
 				self.targets[target].save(path=target_save_path)
+		self.__save_survey__(path)
+		return path
 
+	def __save_survey__(self, path):
+		with open('{}/Object_Class.POS'.format(path), 'w') as f:
+			out = list()
+			for target in self.classes:
+				out.append("{}:{}".format(target, self.classes[target]))
+			out = '\n'.join(out)
+			f.write(out)
+		with open('{}/Item_Ref.POS'.format(path), 'w') as f:
+			out = list()
+			for target_id in self.int_name_ref:
+				out.append("{}:{}".format(target_id, self.int_name_ref[target_id]))
+			out = '\n'.join(out)
+			f.write(out)
+		with open("{}/Item_Loc.POS".format(path), 'w') as f:
+			out = list()
+			for dump in self.target_ref:
+				out.append("{}:{}:{}".format(dump, self.target_ref[dump][0],
+					                         self.target_ref[dump][1]))
+			out = '\n'.join(out)
+			f.write(out)
+		with open("{}/Object_Meta.POS".format(path), 'w') as f:
+			out = list()
+			out.append('Size:{}'.format(self.size))
+			out.append('Name:{}'.format(self.name))
+			out.append('Prefix:{}'.format(self.prefix))
+			out.append('Depth:{}'.format(self.depth))
+			out.append('Verbose:{}'.format(self.verbose))
+			out.append('Noise:{}:{}'.format(self.noise_range[0],
+										    self.noise_range[1]))
+			out.append('MagRange:{}:{}'.format(self.mag_range[0],
+											   self.mag_range[1]))
+			out = '\n'.join(out)
+			f.write(out)
+
+	def load(self, directory='.', start=0):
+		files = os.listdir(directory)
+		try:
+			assert 'Item_Loc.POS' in files
+		except AssertionError as e:
+			e.args += ('Error! Corrupted POS object', 'Cannot find "Item_Loc.POS"')
+			raise
+		try:
+			assert 'Item_Ref.POS' in files
+		except AssertionError as e:
+			e.args += ('Error! Corrupted POS object', 'Cannot find "Item_Red.POS"')
+			raise
+		try:
+			assert 'Object_Class.POS' in files
+		except AssertionError as e:
+			e.args += ('Error! Corrupted POS object', 'Cannot find "Object_Class.POS"')
+			raise
+		try:
+			assert 'Object_Meta.POS' in files
+		except AssertionError as e:
+			e.args += ('Error! Corrupted POS object', 'Cannot find "Object_Meta.POS"')
+			raise
+		if directory[-1] == '/':
+			directory = directory[:-1]
+		dumps = [x.split('_')[1] for x in files if not '.POS' in x and 'Group' in x]
+		dump_dirs = ["{}/Group_{}".format(directory, x) for x in dumps]
+		self.dumps = dump_dirs
+		with open('{}/Item_Loc.POS'.format(directory), 'r') as f:
+			for line in f.readlines():
+				data = line.split(':')
+				self.target_ref[int(data[0])] = [int(data[1]), int(data[2])]
+		with open('{}/Item_Ref.POS'.format(directory), 'r') as f:
+			for line in f.readlines():
+				data = line.split(':')
+				self.int_name_ref[int(data[0])] = data[1].rstrip()
+				self.name_int_ref[data[1].rstrip()] = int(data[0])
+		with open('{}/Object_Class.POS'.format(directory), 'r') as f:
+			for line in f.readlines():
+				data = line.split(':')
+				self.classes[data[0].rstrip()] = int(data[1])
+		with open('{}/Object_Meta.POS'.format(directory), 'r') as f:
+			for line in f.readlines():
+				data = line.split(':')
+				if data[0] == 'Size':
+					self.size = int(data[1])
+				elif data[0] == 'Name':
+					self.name = data[1]
+				elif data[0] == 'Prefix':
+					self.prefix = data[1]
+				elif data[0] == 'Depth':
+					self.depth = int(data[1])
+				elif data[0] == 'Verbose':
+					self.verbose = int(data[1])
+				elif data[0] == 'Noise':
+					self.noise_range = [float(data[1]), float(data[2])]
+				elif data[0] == 'MagRange':
+					self.mag_range = [float(data[1]), float(data[2])]
+		for dump in dumps:
+			self.__load_dump__(n=int(dump))
+		self.state = start
 
 	def __del__(self):
 		path = "{}/.{}_temp".format(os.getcwd(), self.prefix)
