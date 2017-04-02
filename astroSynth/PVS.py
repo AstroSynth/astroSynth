@@ -1,5 +1,4 @@
-from .SDM import Gen_FT, NyApprox, Normalize, Make_Syth_LCs, Insert_Break
-import numpy as np
+from .SDM import *
 from tqdm import tqdm
 from sys import getsizeof
 from tempfile import TemporaryFile
@@ -381,30 +380,28 @@ class PVS:
         self.lcs = np.array(list_lcs)
         self.temp_file = True
 
-    def __generate_single__(self, break_size=[0.1, 10], break_period=[1, 25],
-                            pfrac=0.1, obs_time=3600):
+    def __generate_single__(self, visit_range=[1, 10], visit_size_range=[10, 100],
+                            pfrac=0.1, exposure_time=30, break_size_range=[10, 100],
+                            etime_units=u.second, btime_units=u.hour, vtime_units=u.hour):
         pulsator = self.__pick_pulsator__(pfrac=pfrac)
         if pulsator:
             classification = 1
         else:
             classification = 0
+        obs_time = self.depth * exposure_time
         tlc = Make_Syth_LCs(f=lambda x: self.f(x, self.kwargs), pulsator=pulsator,
                             numpoints=self.depth, noise_range=self.noise_range,
                             start_time=self.T0, end_time=self.T0 + obs_time)
         tlc = np.array(tlc).T
-        fluxs, times, start, end = Insert_Break(tlc, break_size_range=break_size,
-                                                break_period_range=break_period,
-                                                time_col=1, Flux_col=0)
-        # plt.style.use('dark_background')
-        # for flux, time, starts, ends in zip(fluxs, times, start, end):
-        #     plt.plot(time, flux, 'o-', color='grey')
-        # plt.grid()
-        # plt.title('First Sucsessful Caidence Implimentation')
-        # plt.ylabel('Flux [ergs $s^{-1}cm^{-2}$]')
-        # plt.xlabel('Time [Data Points]')
-        # plt.show()
+        times, fluxs, integration_time = Make_Visits(tlc, visit_range=visit_range,
+                                                     visit_size_range=visit_size_range,
+                                                     break_size_range=break_size_range,
+                                                     exposure_time=exposure_time,
+                                                     vtime_units=vtime_units,
+                                                     btime_units=btime_units,
+                                                     etime_units=etime_units,
+                                                     time_col=1, flux_col=0)
         self.lcs = np.array([fluxs, times]).T
-        print(f"Size of self.lcs is: {len(self.lcs)}")
         self.size = len(self.lcs)
         for index, _ in enumerate(self.lcs):
             self.classification = np.append(self.classification, classification)
