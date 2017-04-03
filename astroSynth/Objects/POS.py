@@ -8,6 +8,7 @@ from tqdm import tqdm
 from sys import getsizeof
 from astroSynth import PVS
 from astroSynth import SDM
+from astropy import units as u
 from tempfile import TemporaryFile
 
 
@@ -108,7 +109,7 @@ class POS():
 	def build(self, load_from_file = False, path=None, amp_range=[0, 0.2], 
 		      freq_range = [1, 100], phase_range=[0, np.pi], L_range=[1, 3], 
 		      amp_varience=0.01, freq_varience=0.01, phase_varience=0.01, 
-		      seed=1, obs_range=[10, 100]):
+		      seed=1, visits=[10, 100]):
 		if load_from_file is True:
 			try:
 				assert path is not None
@@ -133,9 +134,12 @@ class POS():
 		self.__build_survey__(amp_range=amp_range, L_range=L_range, freq_range=freq_range,
 							  phase_range=phase_range, amp_varience=amp_varience,
 							  phase_varience=phase_varience, freq_varience=freq_varience,
-							  obs_range=obs_range)
+							  obs_range=visits)
 
-	def generate(self, pfrac=0.5, target_in_mem=100):
+	def generate(self, pfrac=0.5, target_in_mem=100, vtime_units=u.hour,
+				 btime_units=u.day, exposure_time=30, visit_range=[1, 10],
+				 visit_size_range=[0.5, 2], break_size_range=[10, 100],
+				 etime_units=u.second):
 		dumpnum = 0
 		lastdump = 0
 		for j, i in tqdm(enumerate(self.targets), desc='Geneating Survey Data', total=self.size):
@@ -144,7 +148,10 @@ class POS():
 				self.classes[i] = 1
 			else:
 				self.classes[i] = 0
-			self.targets[i].generate(pfrac=self.classes[i])
+			self.targets[i].generate(pfrac=self.classes[i], vtime_units=vtime_units,
+				                     btime_units=btime_units, exposure_time=exposure_time,
+				                     visit_range=visit_range, visit_size_range=visit_size_range,
+				                     break_size_range=break_size_range, etime_units=etime_units)
 			if j-lastdump >= target_in_mem:
 				path_a = "{}/.{}_temp".format(os.getcwd(), self.prefix)
 				if os.path.exists(path_a):
@@ -163,6 +170,70 @@ class POS():
 				dumpnum += 1
 				lastdump = j
 		self.target_ref[-1] = [lastdump, self.size - 1]
+
+	def __get_target_id__(self, n):
+		if isinstance(n, int):
+			target_id = self.int_name_ref[n]
+		if isinstance(n, str):
+			target_id = n
+		return target_id
+
+	def __get_lc__(self, n=0, full=True, sn=0, start=0, stop=None):
+		if isinstance(n, int):
+			target_id = self.int_name_ref[n]
+		if isinstance(n, str):
+			target_id = n
+		if stop == None:
+			stop = len(self.targets[target_id])
+		if full is True:
+			times = list()
+			fluxs = list()
+			for Time, Flux, classes, _ in self.targets[target_id].xget_lc(start=start,
+				                                                          stop=stop):
+				times.extend(Time)
+				fluxs.extend(Flux)
+				c = classes
+		else:
+			times = self.targets[target_id][sn][0]
+			fluxs = self.targets[target_id][sn][1]
+			c = self.targets[target_id][sn][2]
+		return times, fluxs, c, n, full, sn
+
+	def xget_lc(self, start=0, stop=None):
+		if stop is None:
+			stop = self.size
+		if stop > self.size:
+			stop = self.size
+		for i in range(start, stop):
+			yield self.__get_lc__(n=i)
+
+	def get_lc_sub(self, n=0, sub_element=0):
+		return self.__get_lc__(n=n, full=False, sn=sub_element)
+
+
+	def __get_spect__(self, n=0, s=500, UD_stretch=250, LD_stretch=1):
+		if isinstance(n, int):
+			target_id = self.int_name_ref[n]
+		if isinstance(n, str):
+			target_id = n
+		Amps = list()
+		for Freq, Amp, Class, Index in self.targets[target_id].xget_ft():
+			Amps.append(Amp)
+		return np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0), Freq
+
+	def xget_spect(self, start=0, stop=None, s=500, UD_stretch=250,
+		           LD_stretch=1):
+		if stop is None:
+			stop = self.size
+		if stop > self.size:
+			stop = self.size
+		for i in range(start, stop):
+			yield self.__get_spect__(n=i, s=s, UD_stretch=UD_stretch,
+									 LD_stretch=LD_stretch)
+
+	def get_ft_sub(self, n=0, sub_element=0, s=500):
+		target_id = self.__get_target_id__(n)
+		return self.targets[target_id].get_ft(n=sub_element, s=s)
 
 	def __load_dump__(self, n=0, state_change=True):
 		if state_change is True:

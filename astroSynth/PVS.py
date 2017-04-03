@@ -120,7 +120,7 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.3.5.1 Development')
+        print('Version 0.5.0 Development')
 
     def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                          freq_range=[1e-7, 1], L_range=[1, 3]):
@@ -349,10 +349,11 @@ class PVS:
             self.classification = np.append(self.classification, 0)
         return pulsator
 
-    def __generate_multi__(self, pfrac=0.1, obs_time=3600):
+    def __generate_multi__(self, pfrac=0.1, exposure_time=30):
         dump_num = 0
         last_dump = 0
         list_lcs = list()
+        obs_time = self.depth * exposure_time
         for i in tqdm(range(self.size), desc='Geneating Light Curves',
                       leave=self.lpbar, disable=self.dpbar):
             pulsator = self.__pick_pulsator__(pfrac=pfrac)
@@ -381,8 +382,8 @@ class PVS:
         self.temp_file = True
 
     def __generate_single__(self, visit_range=[1, 10], visit_size_range=[10, 100],
-                            pfrac=0.1, exposure_time=30, break_size_range=[10, 100],
-                            etime_units=u.second, btime_units=u.hour, vtime_units=u.hour):
+                            pfrac=0.1, exposure_time=30, break_size_range=[5, 25],
+                            etime_units=u.second, btime_units=u.day, vtime_units=u.hour):
         pulsator = self.__pick_pulsator__(pfrac=pfrac)
         if pulsator:
             classification = 1
@@ -401,13 +402,18 @@ class PVS:
                                                      btime_units=btime_units,
                                                      etime_units=etime_units,
                                                      time_col=1, flux_col=0)
-        self.lcs = np.array([fluxs, times]).T
+        if len(times) == 1:
+            self.lcs = np.array([[times[0], fluxs[0]]])
+        else:
+            self.lcs = np.array([fluxs, times]).T
         self.size = len(self.lcs)
         for index, _ in enumerate(self.lcs):
             self.classification = np.append(self.classification, classification)
 
-    def generate(self, pfrac=0.1, break_size=[0.1, 10],
-                 break_period=[1, 25], obs_time=3600):
+    def generate(self, pfrac=0.1, vtime_units=u.hour,
+                 btime_units=u.day, exposure_time=30,
+                 visit_range=[1, 10], visit_size_range=[0.5, 2],
+                 break_size_range=[10, 100], etime_units=u.second):
         """
         description:
             generate the data given an already build PVS() object 
@@ -449,10 +455,12 @@ class PVS:
             raise
         self.generated = True
         if self.single is False:
-            self.__generate_multi__(pfrac=pfrac, obs_time=obs_time)
+            self.__generate_multi__(pfrac=pfrac, exposure_time=exposure_time)
         else:
-            self.__generate_single__(pfrac=pfrac, break_size=break_size,
-                                     break_period=break_period, obs_time=obs_time)
+            self.__generate_single__(pfrac=pfrac, exposure_time=exposure_time,
+                                     visit_range=visit_range, visit_size_range=visit_size_range,
+                                     break_size_range=break_size_range, vtime_units=vtime_units,
+                                     btime_units=btime_units, etime_units=etime_units)
 
     def __get_lc__(self, n=0, state_change=False):
         """
@@ -486,41 +494,45 @@ class PVS:
                 location retrived
                 if those changes then param:self.state will update to represent that
         """
-        print(f"Size is: {self.size}")
         try:
             assert self.generated is True
         except AssertionError as e:
             e.args += ('PVS objects Light Curves are not generated',
                        'have you run PVS.generate()?')
             raise
-        file_num = -1
-        base = 0
-        for k in self.item_ref:
-            if int(self.item_ref[k][0]) <= n <= int(self.item_ref[k][1]):
-                file_num = int(k)
-                base = int(self.item_ref[k][0])
-                break
+        if self.size != 1:
+            file_num = -1
+            base = 0
+            for k in self.item_ref:
+                if int(self.item_ref[k][0]) <= n <= int(self.item_ref[k][1]):
+                    file_num = int(k)
+                    base = int(self.item_ref[k][0])
+                    break
 
-        if file_num != self.state:
-            if self.temp_file is True:
-                self.dumps[file_num].seek(0)
-                self.class_dumps[file_num].seek(0)
-            tlcs = np.load(self.dumps[file_num])
-            tclass = np.load(self.class_dumps[file_num])
-            if state_change is True:
-                self.lcs = tlcs
-                self.classification = tclass
-                self.state = file_num
+            if file_num != self.state:
+                if self.temp_file is True:
+                    self.dumps[file_num].seek(0)
+                    self.class_dumps[file_num].seek(0)
+                tlcs = np.load(self.dumps[file_num])
+                tclass = np.load(self.class_dumps[file_num])
+                if state_change is True:
+                    self.lcs = tlcs
+                    self.classification = tclass
+                    self.state = file_num
 
-            if self.temp_file is True:
-                self.dumps[file_num].seek(0, os.SEEK_END)
-                self.class_dumps[file_num].seek(0, os.SEEK_END)
-            return tlcs[n - base - 1].T[1], tlcs[n - base - 1].T[0], tclass[n - base - 1], n
+                if self.temp_file is True:
+                    self.dumps[file_num].seek(0, os.SEEK_END)
+                    self.class_dumps[file_num].seek(0, os.SEEK_END)
+                return tlcs[n - base - 1].T[1], tlcs[n - base - 1].T[0], tclass[n - base - 1], n
+            else:
+                return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
         else:
-            return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
+            return self.lcs[0][0], self.lcs[0][1], self.classification[0], 0
 
     def xget_lc(self, stop=None, start=0):
         if stop is None:
+            stop = self.size
+        if stop > self.size:
             stop = self.size
         for i in range(start, stop):
             yield self.__get_lc__(n=i)
