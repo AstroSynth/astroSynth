@@ -178,13 +178,21 @@ class POS():
 			target_id = n
 		return target_id
 
-	def __get_lc__(self, n=0, full=True, sn=0, start=0, stop=None):
+	def __get_lc__(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
 		if isinstance(n, int):
 			target_id = self.int_name_ref[n]
 		if isinstance(n, str):
 			target_id = n
 		if stop == None:
 			stop = len(self.targets[target_id])
+
+		# times = list()
+		# fluxs = list()
+		# for i in range(start, stop):
+		# 	ttime, flux, c, k, td = self.__get_target_lc__(target=n, n=i, state_change=state_change)
+		# 	times.append(ttime)
+		# 	fluxs.append(flux)
+		# return times, fluxs, c, target_id
 		if full is True:
 			times = list()
 			fluxs = list()
@@ -197,7 +205,7 @@ class POS():
 			times = self.targets[target_id][sn][0]
 			fluxs = self.targets[target_id][sn][1]
 			c = self.targets[target_id][sn][2]
-		return times, fluxs, c, n, full, sn
+		return times, fluxs, c, target_id
 
 	def xget_lc(self, start=0, stop=None):
 		if stop is None:
@@ -278,7 +286,7 @@ class POS():
 				e.args('Error! Target Index not found in targets reference')
 				raise
 			try:
-				assert n < len(self.targets)
+				assert n < len(self.targets[target])
 			except AssertionError as e:
 				e.args += ('ERROR! Target Light Curve index out of range')
 				raise

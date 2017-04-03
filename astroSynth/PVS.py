@@ -137,6 +137,7 @@ class PVS:
                                            freq_range[1],
                                            kwargs['num'])
         self.kwargs = kwargs
+        print('Pulsation Amplitudes in PVS is: {}'.format(kwargs['amp']))
         self.f = lambda x, d: self.__mode_addition__(x, **d)
 
     def __build_func__(self, phase_range=[0, np.pi], amp_range=[0, 1],
@@ -705,6 +706,7 @@ class PVS:
 
     def get_ft(self, n=0, s=300, state_change=False):
         Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
+        print('The Nyquist Frequency is: {}'.format(NyApprox(Time)))
         FT = Gen_FT(Time, Flux, NyApprox(Time), s)
         return FT['Freq'], FT['Amp'], Classification, n
 
