@@ -85,13 +85,13 @@ class POS():
 			observations = np.random.randint(obs_range[0],
 											 obs_range[1])
 
-			target_name = names.get_full_name().replace(' ', '-')
-			target_id = "{}_{}".format(self.prefix, target_name)
+			target_name = names.get_last_name().replace(' ', '-')
+			target_id = "{}-{}".format(target_name, np.random.randint(0, 5001))
 			self.targets[target_id] = PVS(Number=observations, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
 				                          lpbar=False, ftemp=True, single_object=True)
-
+			print('The Frequency Range is: [{},{})'.format(pulsation_frequency - pfp, pulsation_frequency + pfp))
 			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
 										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
 										  phase_range=[pulsation_phase - ppp, pulsation_phase + ppp],

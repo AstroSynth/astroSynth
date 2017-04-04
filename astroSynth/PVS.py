@@ -254,7 +254,9 @@ class PVS:
         freq = np.array(freq)
 
         fout = amp[0] * np.sin(2 * np.pi * freq[0] * x + phase[0])
+        print('IN MODE ADDITION FREQUENCY IS: {}'.format(freq[0]))
         for i in range(1, num):
+            print('IN MODE ADDITION FREQUENCY IS: {}'.format(freq[i]))
             fout += amp[i] * np.sin(2 * np.pi * freq[i] * x + phase[i])
 
         return fout
@@ -706,7 +708,6 @@ class PVS:
 
     def get_ft(self, n=0, s=300, state_change=False):
         Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
-        print('The Nyquist Frequency is: {}'.format(NyApprox(Time)))
         FT = Gen_FT(Time, Flux, NyApprox(Time), s)
         return FT['Freq'], FT['Amp'], Classification, n
 
