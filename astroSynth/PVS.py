@@ -8,6 +8,7 @@ import shutil
 import time
 import math
 import matplotlib.pyplot as plt
+import pandas as pd
 
 """
 PVS (Pulsating Variable Star)- Class
@@ -254,9 +255,7 @@ class PVS:
         freq = np.array(freq)
 
         fout = amp[0] * np.sin(2 * np.pi * freq[0] * x + phase[0])
-        print('IN MODE ADDITION FREQUENCY IS: {}'.format(freq[0]))
         for i in range(1, num):
-            print('IN MODE ADDITION FREQUENCY IS: {}'.format(freq[i]))
             fout += amp[i] * np.sin(2 * np.pi * freq[i] * x + phase[i])
 
         return fout
@@ -706,18 +705,18 @@ class PVS:
         out = '\n'.join(l)
         return out
 
-    def get_ft(self, n=0, s=300, state_change=False):
+    def get_ft(self, n=0, s=300, state_change=False, power_spec=False):
         Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
-        FT = Gen_FT(Time, Flux, NyApprox(Time), s)
+        FT = Gen_FT(Time, Flux, NyApprox(Time), s, power_spec=power_spec)
         return FT['Freq'], FT['Amp'], Classification, n
 
-    def xget_ft(self, start=0, stop=None, s=300):
+    def xget_ft(self, start=0, stop=None, s=300, power_spec=False):
         if stop is None:
             for i in range(start, self.size):
-                yield self.get_ft(n=i, s=s)
+                yield self.get_ft(n=i, s=s, power_spec=power_spec)
         else:
             for i in range(start, stop):
-                yield self.get_ft(n=i, s=s)
+                yield self.get_ft(n=i, s=s, power_spec=power_spec)
 
     def batch_get(self, batch_size=10, ft=False, s=None, mem_size=1e9):
         if isinstance(batch_size, str):

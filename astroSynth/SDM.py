@@ -224,7 +224,7 @@ def Make_LC(noise_level=0, f=lambda x: np.sin(x), mag=10, numpoints=100,
     Raises:
         N/A
     """
-    key = np.linspace(0, numpoints, numpoints)
+    key = np.linspace(start_time, end_time, numpoints)
     if end_time == 0:
         end_time = numpoints
     if noise_level != 0:
@@ -234,7 +234,7 @@ def Make_LC(noise_level=0, f=lambda x: np.sin(x), mag=10, numpoints=100,
         temp_lc += signal
     else:
         temp_lc = f(key)
-    data = {'Time': np.linspace(start_time, end_time, numpoints),
+    data = {'Time': key,
            'Flux': temp_lc}
     return pd.DataFrame(data=data)
 

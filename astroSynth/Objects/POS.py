@@ -219,25 +219,26 @@ class POS():
 		return self.__get_lc__(n=n, full=False, sn=sub_element)
 
 
-	def __get_spect__(self, n=0, s=500, UD_stretch=250, LD_stretch=1):
+	def __get_spect__(self, n=0, s=500, UD_stretch=250, LD_stretch=1,
+					  power_spec=True):
 		if isinstance(n, int):
 			target_id = self.int_name_ref[n]
 		if isinstance(n, str):
 			target_id = n
 		Amps = list()
-		for Freq, Amp, Class, Index in self.targets[target_id].xget_ft():
+		for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
 			Amps.append(Amp)
 		return np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0), Freq
 
 	def xget_spect(self, start=0, stop=None, s=500, UD_stretch=250,
-		           LD_stretch=1):
+		           LD_stretch=1, power_spec=True):
 		if stop is None:
 			stop = self.size
 		if stop > self.size:
 			stop = self.size
 		for i in range(start, stop):
 			yield self.__get_spect__(n=i, s=s, UD_stretch=UD_stretch,
-									 LD_stretch=LD_stretch)
+									 LD_stretch=LD_stretch, power_spec=False)
 
 	def get_ft_sub(self, n=0, sub_element=0, s=500):
 		target_id = self.__get_target_id__(n)
