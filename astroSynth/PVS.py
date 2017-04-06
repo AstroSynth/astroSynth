@@ -138,7 +138,6 @@ class PVS:
                                            freq_range[1],
                                            kwargs['num'])
         self.kwargs = kwargs
-        print('Pulsation Amplitudes in PVS is: {}'.format(kwargs['amp']))
         self.f = lambda x, d: self.__mode_addition__(x, **d)
 
     def __build_func__(self, phase_range=[0, np.pi], amp_range=[0, 1],
@@ -687,6 +686,7 @@ class PVS:
 
     def __repr__(self):
         l = list()
+        l.append('Name: {n}'.format(n=self.name))
         l.append('Size: {s}'.format(s=self.size))
         l.append('Noise Range: {n}'.format(n=self.noise_range))
         l.append('Magnitude Range: {m}'.format(m=self.mag_range))

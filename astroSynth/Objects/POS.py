@@ -10,6 +10,7 @@ from astroSynth import PVS
 from astroSynth import SDM
 from astropy import units as u
 from tempfile import TemporaryFile
+from scipy.signal import spectrogram
 
 
 class POS():
@@ -91,20 +92,12 @@ class POS():
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
 				                          lpbar=False, ftemp=True, single_object=True)
-			print('The Frequency Range is: [{},{})'.format(pulsation_frequency - pfp, pulsation_frequency + pfp))
 			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
 										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
 										  phase_range=[pulsation_phase - ppp, pulsation_phase + ppp],
 										  L_range=[pulsation_modes, pulsation_modes])
 			self.int_name_ref[i] = target_id
 			self.name_int_ref[target_id] = i
-
-	def __get_break_params__(self, break_number_range=[0, 10]):
-		"""
-		Currently Experimental
-		"""
-		return ([], []), ([], [])
-
 
 	def build(self, load_from_file = False, path=None, amp_range=[0, 0.2], 
 		      freq_range = [1, 100], phase_range=[0, np.pi], L_range=[1, 3], 
@@ -178,33 +171,72 @@ class POS():
 			target_id = n
 		return target_id
 
-	def __get_lc__(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
+	def __get_target_number__(self, n):
 		if isinstance(n, int):
-			target_id = self.int_name_ref[n]
-		if isinstance(n, str):
 			target_id = n
+		if isinstance(n, str):
+			target_id = self.name_int_ref[n]
+		return target_id
+
+	def __get_lc__(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
+		target_id = self.__get_target_id__(n)
 		if stop == None:
 			stop = len(self.targets[target_id])
 
-		# times = list()
-		# fluxs = list()
-		# for i in range(start, stop):
-		# 	ttime, flux, c, k, td = self.__get_target_lc__(target=n, n=i, state_change=state_change)
-		# 	times.append(ttime)
-		# 	fluxs.append(flux)
-		# return times, fluxs, c, target_id
-		if full is True:
-			times = list()
-			fluxs = list()
-			for Time, Flux, classes, _ in self.targets[target_id].xget_lc(start=start,
-				                                                          stop=stop):
-				times.extend(Time)
-				fluxs.extend(Flux)
-				c = classes
+		target_num = self.name_int_ref[target_id]
+
+		dump_num = -1
+		for k in self.target_ref:
+			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
+				dump_num = int(k)
+				break
+
+		if dump_num != self.state:
+			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
+			try:
+				assert n < len(self.targets[target_id])
+			except AssertionError as e:
+				e.args += ('ERROR! Target Light Curve index out of range')
+				raise
+			if state_change is False:
+				if full is True:
+					times = list()
+					fluxs = list()
+					for Time, Flux, classes, _ in pull_from[target_id].xget_lc(start=start,
+						                                                       stop=stop):
+						times.extend(Time)
+						fluxs.extend(Flux)
+						c = classes
+				else:
+					times = pull_from[target_id][sn][0]
+					fluxs = pull_from[target_id][sn][1]
+					c = pull_from[target_id][sn][2]
+			else:
+				if full is True:
+					times = list()
+					fluxs = list()
+					for Time, Flux, classes, _ in self.targets[target_id].xget_lc(start=start,
+						                                                          stop=stop):
+						times.extend(Time)
+						fluxs.extend(Flux)
+						c = classes
+				else:
+					times = self.targets[target_id][sn][0]
+					fluxs = self.targets[target_id][sn][1]
+					c = self.targets[target_id][sn][2]
 		else:
-			times = self.targets[target_id][sn][0]
-			fluxs = self.targets[target_id][sn][1]
-			c = self.targets[target_id][sn][2]
+			if full is True:
+				times = list()
+				fluxs = list()
+				for Time, Flux, classes, _ in self.targets[target_id].xget_lc(start=start,
+					                                                          stop=stop):
+					times.extend(Time)
+					fluxs.extend(Flux)
+					c = classes
+			else:
+				times = self.targets[target_id][sn][0]
+				fluxs = self.targets[target_id][sn][1]
+				c = self.targets[target_id][sn][2]
 		return times, fluxs, c, target_id
 
 	def xget_lc(self, start=0, stop=None):
@@ -228,7 +260,9 @@ class POS():
 		Amps = list()
 		for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
 			Amps.append(Amp)
-		return np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0), Freq
+		out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
+			         Freq, self.targets[target_id][0][2], target_id)
+		return out_tuple
 
 	def xget_spect(self, start=0, stop=None, s=500, UD_stretch=250,
 		           LD_stretch=1, power_spec=True):
@@ -303,7 +337,6 @@ class POS():
 
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
-			print('Targets are: {}'.format(self.targets))
 			try:
 				assert n < len(self.targets[self.int_name_ref[target]])
 			except AssertionError as e:
@@ -314,7 +347,6 @@ class POS():
 			else:
 				Time, Flux, Class, n = self.targets[target_id][n]
 		else:
-			print('Targets are: {}'.format(self.targets))
 			Time, Flux, Class, n = self.targets[target_id][n]
 
 		return Time, Flux, Class, n, target_id
@@ -445,6 +477,77 @@ class POS():
 		for dump in dumps:
 			self.__load_dump__(n=int(dump))
 		self.state = start
+
+	def names(self):
+		return list(self.targets.keys())
+
+	def get_object(self, n=0):
+		target_id = self.__get_target_id__(n=n)
+		return self.targets[target_id]
+
+	def __batch_get_lc__(self, start=0, mem_size=1e9, step=1,
+						 stop=None):
+		if stop is None:
+			stop = self.size
+		mem_use_single = getsizeof(self.__get_lc__(n=start))
+		num = int(mem_size / mem_use_single)
+		if stop < start + (num * step):
+			num = stop
+		else:
+			num *= step
+			num += start
+		out_times = list()
+		out_fluxs = list()
+		out_class = list()
+		out_tarid = list()
+		for j in range(start, num, step):
+			Time, Flux, Class, TID = self.__get_lc__(n=j, state_change=True)
+			out_times.append(Time)
+			out_fluxs.append(Flux)
+			out_class.append(Class)
+			out_tarid.append(TID)
+		return out_times, out_fluxs, out_class, out_tarid
+
+	def __batch_get_spect__(self, start=0, mem_size=1e9, step=1,
+							stop=None, s=500, UD_stretch=250,
+							LD_stretch=1, power_spec=True):
+		if stop is None:
+			stop = self.size
+		mem_use_single = getsizeof(self.__get_spect__(n=0, s=s,
+													  UD_stretch=UD_stretch,
+													  power_spec=power_spec,
+													  LD_stretch=LD_stretch))
+		num = int(mem_size / mem_use_single)
+		if stop < start + (num * step):
+			num = stop
+		else:
+			num *= step
+			num += start
+		out_imigs = list()
+		out_freqs = list()
+		out_class = list()
+		out_tarid = list()
+		for j in range(start, num, step):
+			img, freq, Class, TID = self.__get_spect__(n=j, s=s,
+													   UD_stretch=UD_stretch,
+													   LD_stretch=LD_stretch,
+													   power_spec=power_spec)
+			
+
+	def __repr__(self):
+		out = list()
+		out.append(f"Survey Name: {self.prefix}")
+		out.append(f"Survey Size: {self.size}")
+		out.append(f"Survey Object Name: {self.name}")
+
+		return '\n'.join(out)
+
+	def __getitem__(self, key):
+		if isinstance(key, int) or isinstance(key, str):
+			return self.get_object(n=key)
+
+	def __len__(self):
+		return self.size
 
 	def __del__(self):
 		path = "{}/.{}_temp".format(os.getcwd(), self.prefix)
