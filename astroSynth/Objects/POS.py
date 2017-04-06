@@ -23,7 +23,7 @@ class POS():
 		self.mag_range = mag_range
 		self.size = number
 		self.depth = numpoints
-		self.verbose = 0
+		self.verbose = verbose
 		self.noise_range = noise_range
 		self.targets = dict()
 		self.int_name_ref = dict()
@@ -31,6 +31,7 @@ class POS():
 		self.classes = dict()
 		self.target_ref = dict()
 		self.dumps = dict()
+		self.save_exists = False
 		self.state = -1
 
 	@staticmethod
@@ -91,7 +92,7 @@ class POS():
 			self.targets[target_id] = PVS(Number=observations, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
-				                          lpbar=False, ftemp=True, single_object=True)
+				                          dpbar=True, ftemp=True, single_object=True)
 			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
 										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
 										  phase_range=[pulsation_phase - ppp, pulsation_phase + ppp],
@@ -133,9 +134,12 @@ class POS():
 				 btime_units=u.day, exposure_time=30, visit_range=[1, 10],
 				 visit_size_range=[0.5, 2], break_size_range=[10, 100],
 				 etime_units=u.second):
+		self.save_exists = False
 		dumpnum = 0
 		lastdump = 0
+		refs = list()
 		for j, i in tqdm(enumerate(self.targets), desc='Geneating Survey Data', total=self.size):
+			refs.append(i)
 			rand_pick = np.random.uniform(0, 10)
 			if rand_pick < pfrac * 10:
 				self.classes[i] = 1
@@ -147,14 +151,17 @@ class POS():
 				                     break_size_range=break_size_range, etime_units=etime_units)
 			if j-lastdump >= target_in_mem:
 				path_a = "{}/.{}_temp".format(os.getcwd(), self.prefix)
-				if os.path.exists(path_a):
-					shutil.rmtree(path_a)
-				os.mkdir(path_a)
+				if self.save_exists is False:
+					if os.path.exists(path_a):
+						shutil.rmtree(path_a)
+					os.mkdir(path_a)
+					self.save_exists = True
 				path = "{}/.{}_temp/{}_dump".format(os.getcwd(), self.prefix, dumpnum)
 				os.mkdir(path)
-				for k, x in enumerate(self.targets):
-					if k < j-lastdump: 
-						star_path = "{}/{}".format(path, x)
+				for k, x in enumerate(refs):
+					#if k < j-lastdump: 
+					star_path = "{}/{}".format(path, x)
+					if self.targets[x] is not None:
 						os.mkdir(star_path)
 						self.targets[x].save(path=star_path)
 						self.targets[x] = None
@@ -163,6 +170,10 @@ class POS():
 				dumpnum += 1
 				lastdump = j
 		self.target_ref[-1] = [lastdump, self.size - 1]
+		if self.save_exists is True:
+			print('Saving The Survey')
+			path = "{}/.{}_temp".format(os.getcwd(), self.prefix)
+			self.__save_survey__(path)
 
 	def __get_target_id__(self, n):
 		if isinstance(n, int):
@@ -180,10 +191,9 @@ class POS():
 
 	def __get_lc__(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
 		target_id = self.__get_target_id__(n)
+		target_num = self.__get_target_number__(n)
 		if stop == None:
 			stop = len(self.targets[target_id])
-
-		target_num = self.name_int_ref[target_id]
 
 		dump_num = -1
 		for k in self.target_ref:
@@ -252,16 +262,33 @@ class POS():
 
 
 	def __get_spect__(self, n=0, s=500, UD_stretch=250, LD_stretch=1,
-					  power_spec=True):
-		if isinstance(n, int):
-			target_id = self.int_name_ref[n]
-		if isinstance(n, str):
-			target_id = n
+					  power_spec=True, state_change=True):
+		target_id = self.__get_target_id__(n)
+		target_num = self.name_int_ref[target_id]
+
+		dump_num = -1
+		for k in self.target_ref:
+			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
+				dump_num = int(k)
+				break
 		Amps = list()
-		for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
-			Amps.append(Amp)
-		out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
-			         Freq, self.targets[target_id][0][2], target_id)
+		if dump_num != self.state:
+			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
+			if state_change is True:
+				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
+					Amps.append(Amp)
+				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
+					         Freq, self.targets[target_id][0][2], target_id)
+			else:
+				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
+					Amps.append(Amp)
+				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
+					         Freq, pull_from[target_id][0][2], target_id)
+		else:
+			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
+				Amps.append(Amp)
+			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
+				         Freq, self.targets[target_id][0][2], target_id)	
 		return out_tuple
 
 	def xget_spect(self, start=0, stop=None, s=500, UD_stretch=250,
@@ -274,9 +301,24 @@ class POS():
 			yield self.__get_spect__(n=i, s=s, UD_stretch=UD_stretch,
 									 LD_stretch=LD_stretch, power_spec=False)
 
-	def get_ft_sub(self, n=0, sub_element=0, s=500):
+	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False):
 		target_id = self.__get_target_id__(n)
-		return self.targets[target_id].get_ft(n=sub_element, s=s)
+		target_num = self.__get_target_number__(n)
+
+		dump_num = -1
+		for k in self.target_ref:
+			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
+				dump_num = int(k)
+				break
+		if dump_num != self.state:
+			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
+			if state_change is True:
+				out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s)
+			else:
+				out_tuple = pull_from[target_id].get_ft(n=sub_element, s=s)
+		else:
+			out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s)
+		return out_tuple
 
 	def __load_dump__(self, n=0, state_change=True):
 		if state_change is True:
@@ -303,53 +345,6 @@ class POS():
 			return ttargets
 		else:
 			return 0
-
-	def __get_target_lc__(self, target=0, n=0, state_change=False):
-		if isinstance(target, int):
-			try:
-				assert target < self.size
-			except AssertionError as e:
-				e.args += ('ERROR!, Target Index Out Of Range')
-				raise
-
-			target_id = self.int_name_ref[n]
-			target_num = target
-		elif isinstance(target, str):
-			try:
-				assert target in self.targets
-			except AssertionError as e:
-				e.args('Error! Target Index not found in targets reference')
-				raise
-			try:
-				assert n < len(self.targets[target])
-			except AssertionError as e:
-				e.args += ('ERROR! Target Light Curve index out of range')
-				raise
-
-			target_id = target
-			target_num = self.name_int_ref[target_id]
-
-		dump_num = -1
-		for k in self.target_ref:
-			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
-				dump_num = int(k)
-				break
-
-		if dump_num != self.state:
-			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
-			try:
-				assert n < len(self.targets[self.int_name_ref[target]])
-			except AssertionError as e:
-				e.args += ('ERROR! Target Light Curve index out of range')
-				raise
-			if state_change is False:
-				Time, Flux, Class, n = pull_from[target_id][n]
-			else:
-				Time, Flux, Class, n = self.targets[target_id][n]
-		else:
-			Time, Flux, Class, n = self.targets[target_id][n]
-
-		return Time, Flux, Class, n, target_id
 
 	def save(self, path=None):
 		if path is None:
@@ -417,7 +412,7 @@ class POS():
 			out = '\n'.join(out)
 			f.write(out)
 
-	def load(self, directory='.', start=0):
+	def load(self, directory='.', start=-1):
 		files = os.listdir(directory)
 		try:
 			assert 'Item_Loc.POS' in files
@@ -476,14 +471,29 @@ class POS():
 					self.mag_range = [float(data[1]), float(data[2])]
 		for dump in dumps:
 			self.__load_dump__(n=int(dump))
+		print('Targets are: {}'.format(self.targets))
 		self.state = start
 
 	def names(self):
 		return list(self.targets.keys())
 
-	def get_object(self, n=0):
-		target_id = self.__get_target_id__(n=n)
-		return self.targets[target_id]
+	def get_object(self, n=0, state_change=False):
+		target_id = self.__get_target_id__(n)
+		target_num = self.__get_target_number__(n)
+		dump_num = -1
+		for k in self.target_ref:
+			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
+				dump_num = int(k)
+				break
+		if dump_num != self.state:
+			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
+			if state_change is True:
+				out_obj = self.targets[target_id]
+			else:
+				out_obj = pull_from[target_id]
+		else:
+			out_obj = self.targets[target_id]
+		return out_obj
 
 	def __batch_get_lc__(self, start=0, mem_size=1e9, step=1,
 						 stop=None):
@@ -532,13 +542,19 @@ class POS():
 													   UD_stretch=UD_stretch,
 													   LD_stretch=LD_stretch,
 													   power_spec=power_spec)
-			
+			out_imigs.append(img)
+			out_freqs.append(freq)
+			out_class.append(Class)
+			out_tarid.append(TID)
+		return out_imigs, out_freqs, out_class, out_tarid			
 
 	def __repr__(self):
 		out = list()
 		out.append(f"Survey Name: {self.prefix}")
 		out.append(f"Survey Size: {self.size}")
 		out.append(f"Survey Object Name: {self.name}")
+		if self.verbose >= 1:
+			out.append(f'Noise Range: {self.noise_range[0]}->{self.noise_range[1]}')
 
 		return '\n'.join(out)
 

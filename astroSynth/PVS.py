@@ -578,8 +578,7 @@ class PVS:
                     self.class_dumps[cdump].seek(0, os.SEEK_END)
                 np.save("{}/LightCurve_{}.npy".format(path, dump), tlc)
                 np.save("{}/LightCurve_Class_{}.npy".format(path, dump), tclass)
-
-        if len(self.lcs > 0):
+        if len(self.lcs) > 0:
             np.save("{}/LightCurve_{}.npy".format(path, -1), self.lcs)
             np.save("{}/LightCurve_Class_{}.npy".format(path, -1), self.classification)
 
