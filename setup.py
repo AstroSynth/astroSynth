@@ -23,7 +23,6 @@ setup(name='astroSynth',
           'scipy>=0.19.0',
           'astropy>=1.3.2',
           'names>=0.3.0'
-
       ],
       packages=['astroSynth'],
       zip_safe=False)
