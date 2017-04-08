@@ -1,10 +1,8 @@
 import os
-import time
 import names
 import shutil
 from ..SDM import *
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 from sys import getsizeof
 from astroSynth import PVS
