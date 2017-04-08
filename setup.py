@@ -4,14 +4,14 @@ from os import path
 HERE = path.abspath(path.dirname(__file__))
 
 setup(name='astroSynth',
-      version='0.3.5.1',
+      version='0.4',
       description='Very Basic Astrophysics Synthetic Generation Suite',
       url='https://github.com/tboudreaux/astroSynth.git',
       author='Thomas Boudreaux',
       author_email='thomas@boudreauxmail.com',
       license='MIT',
       classifiers=[
-          'Development Status :: 3 - Alpha',
+          'Development Status :: 4 - Beta',
           'Intended Audience :: Science/Research',
           'License :: OSI Approved :: MIT License',
           'Programming Language :: Python :: 3'
@@ -20,7 +20,10 @@ setup(name='astroSynth',
           'numpy>=1.12.0',
           'pandas>=0.19.2',
           'tqdm>=4.11.2',
-          'scipy>=0.19.0'
+          'scipy>=0.19.0',
+          'astropy>=1.3.2',
+          'names>=0.3.0'
+
       ],
       packages=['astroSynth'],
       zip_safe=False)
