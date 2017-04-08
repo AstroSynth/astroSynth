@@ -12,7 +12,7 @@ from astroSynth import SDM
 from astropy import units as u
 from tempfile import TemporaryFile
 from scipy.signal import spectrogram
-
+from scipy import misc
 
 class POS():
 	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.05, 0.1],
@@ -34,6 +34,7 @@ class POS():
 		self.dumps = dict()
 		self.save_exists = False
 		self.state = -1
+		self.current = 0
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -85,20 +86,17 @@ class POS():
 				pulsation_modes = L_range[0]
 
 			pulsation_amp = np.random.uniform(amp_range[0],
-				                              amp_range[1],
-				                              pulsation_modes)
+				                              amp_range[1])
 			pap = amp_varience * pulsation_amp
 			pap = 0
 
 			pulsation_frequency = np.random.uniform(freq_range[0],
-				                                    freq_range[1],
-				                                    pulsation_modes)
+				                                    freq_range[1])
 			pfp = freq_varience * pulsation_frequency
 			pfp = 0
 
 			pulsation_phase = np.random.uniform(phase_range[0],
-		    	                                phase_range[1],
-		    	                                pulsation_modes)
+		    	                                phase_range[1])
 			ppp = phase_varience * pulsation_phase
 			ppp = 0
 
@@ -183,7 +181,7 @@ class POS():
 						os.mkdir(star_path)
 						self.targets[x].save(path=star_path)
 						self.targets[x] = None
-				self.target_ref[dumpnum] = [lastdump, target_in_mem + lastdump - 1]
+				self.target_ref[dumpnum] = [lastdump, target_in_mem + lastdump]
 				self.dumps[dumpnum] = path
 				dumpnum += 1
 				lastdump = j
@@ -210,8 +208,6 @@ class POS():
 	def __get_lc__(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
 		target_id = self.__get_target_id__(n)
 		target_num = self.__get_target_number__(n)
-		if stop == None:
-			stop = len(self.targets[target_id])
 
 		dump_num = -1
 		for k in self.target_ref:
@@ -221,12 +217,14 @@ class POS():
 
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
-			try:
-				assert n < len(self.targets[target_id])
-			except AssertionError as e:
-				e.args += ('ERROR! Target Light Curve index out of range')
-				raise
 			if state_change is False:
+				try:
+					assert sn < len(pull_from[target_id])
+				except AssertionError as e:
+					e.args += ('ERROR!', 'Target Light Curve index out of range')
+					raise
+				if stop == None:
+					stop = len(pull_from[target_id])
 				if full is True:
 					times = list()
 					fluxs = list()
@@ -240,6 +238,13 @@ class POS():
 					fluxs = pull_from[target_id][sn][1]
 					c = pull_from[target_id][sn][2]
 			else:
+				try:
+					assert sn < len(self.targets[target_id])
+				except AssertionError as e:
+					e.args += ('ERROR!', 'Target Light Curve index out of range')
+					raise
+				if stop == None:
+					stop = len(self.targets[target_id])
 				if full is True:
 					times = list()
 					fluxs = list()
@@ -253,6 +258,8 @@ class POS():
 					fluxs = self.targets[target_id][sn][1]
 					c = self.targets[target_id][sn][2]
 		else:
+			if stop == None:
+				stop = len(self.targets[target_id])
 			if full is True:
 				times = list()
 				fluxs = list()
@@ -267,23 +274,23 @@ class POS():
 				c = self.targets[target_id][sn][2]
 		return times, fluxs, c, target_id
 
-	def xget_lc(self, start=0, stop=None):
+	def xget_lc(self, start=0, stop=None, state_change=True):
 		if stop is None:
 			stop = self.size
 		if stop > self.size:
 			stop = self.size
 		for i in range(start, stop):
-			yield self.__get_lc__(n=i)
+			yield self.__get_lc__(n=i, state_change=state_change)
 
 	def get_lc_sub(self, n=0, sub_element=0):
 		return self.__get_lc__(n=n, full=False, sn=sub_element)
 
 
-	def __get_spect__(self, n=0, s=500, UD_stretch=250, LD_stretch=1,
+	def __get_spect__(self, n=0, s=500, dim=(0, 50),
 					  power_spec=True, state_change=True):
 		target_id = self.__get_target_id__(n)
 		target_num = self.name_int_ref[target_id]
-
+		LD_stretch = 1
 		dump_num = -1
 		for k in self.target_ref:
 			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
@@ -293,31 +300,52 @@ class POS():
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
+				UD_stretch = float(len(self.targets[target_id])/dim[1])
+				if UD_stretch < 1:
+					UD_stretch = int(1/UD_stretch)
+				print('Stretches A are: {}, {}'.format(UD_stretch, LD_stretch))
 				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
 					Amps.append(compress_to_1(Amp))
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, self.targets[target_id][0][2], target_id)
 			else:
+				UD_stretch = float(len(pull_from[target_id])/dim[1])
+				if UD_stretch < 1:
+					UD_stretch = int(1/UD_stretch)
+				print('Stretches B are: {}, {}'.format(UD_stretch, LD_stretch))
 				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
 					Amps.append(compress_to_1(Amp))
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id)
 		else:
+
+			UD_stretch = float(len(self.targets[target_id])/dim[1])
+			if UD_stretch < 1:
+				UD_stretch = 1/UD_stretch
+			print('Stretches C are: {}, {}'.format(UD_stretch, LD_stretch))
 			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
 				Amps.append(compress_to_1(Amp))
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id)	
+		out_img = misc.imresize(out_tuple[0], (dim[1], s), interp='cubic')
+		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3])
 		return out_tuple
 
+	def get_spect(self, n=0, s=500, dim=(50, 50), power_spec=True, 
+				  state_change=True):
+		return self.__get_spect__(n=n, s=s, dim=dim, power_spec=power_spec,
+								  state_change=state_change)
+
 	def xget_spect(self, start=0, stop=None, s=500, UD_stretch=250,
-		           LD_stretch=1, power_spec=True):
+		           LD_stretch=1, power_spec=True, state_change=True):
 		if stop is None:
 			stop = self.size
 		if stop > self.size:
 			stop = self.size
 		for i in range(start, stop):
 			yield self.__get_spect__(n=i, s=s, UD_stretch=UD_stretch,
-									 LD_stretch=LD_stretch, power_spec=False)
+									 LD_stretch=LD_stretch, power_spec=False,
+									 state_change=state_change)
 
 	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False, power_spec=True):
 		target_id = self.__get_target_id__(n)
@@ -455,8 +483,10 @@ class POS():
 		if directory[-1] == '/':
 			directory = directory[:-1]
 		dumps = [x.split('_')[1] for x in files if not '.POS' in x and 'Group' in x]
+		dumps = [int(x) for x in dumps]
 		dump_dirs = ["{}/Group_{}".format(directory, x) for x in dumps]
-		self.dumps = dump_dirs
+		for d, p in zip(dumps, dump_dirs):	
+			self.dumps[d] = p
 		with open('{}/Item_Loc.POS'.format(directory), 'r') as f:
 			for line in f.readlines():
 				data = line.split(':')
@@ -487,13 +517,23 @@ class POS():
 					self.noise_range = [float(data[1]), float(data[2])]
 				elif data[0] == 'MagRange':
 					self.mag_range = [float(data[1]), float(data[2])]
+		dumps = [int(x) for x in dumps]
+		dumps = sorted(dumps)
 		for dump in dumps:
-			self.__load_dump__(n=int(dump))
-		print('Targets are: {}'.format(self.targets))
-		self.state = start
+			self.__load_dump__(n=dump)
+		
+		self.state = dumps[-1]
 
 	def names(self):
 		return list(self.targets.keys())
+
+	def xget_object(self, start=0, stop=None, state_change=True):
+		if stop is None:
+			stop = self.size
+		if stop > self.size:
+			stop = self.size
+		for i in range(start, stop):
+			yield self.get_object(n=i, state_change=state_change)
 
 	def get_object(self, n=0, state_change=False):
 		target_id = self.__get_target_id__(n)
@@ -537,14 +577,12 @@ class POS():
 		return out_times, out_fluxs, out_class, out_tarid
 
 	def __batch_get_spect__(self, start=0, mem_size=1e9, step=1,
-							stop=None, s=500, UD_stretch=250,
-							LD_stretch=1, power_spec=True):
+							stop=None, s=500, dim=(50, 50),
+							power_spec=True):
 		if stop is None:
 			stop = self.size
-		mem_use_single = getsizeof(self.__get_spect__(n=0, s=s,
-													  UD_stretch=UD_stretch,
-													  power_spec=power_spec,
-													  LD_stretch=LD_stretch))
+		mem_use_single = getsizeof(self.__get_spect__(n=0, s=s, dim=dim,
+													  power_spec=power_spec))
 		num = int(mem_size / mem_use_single)
 		if stop < start + (num * step):
 			num = stop
@@ -556,15 +594,56 @@ class POS():
 		out_class = list()
 		out_tarid = list()
 		for j in range(start, num, step):
-			img, freq, Class, TID = self.__get_spect__(n=j, s=s,
-													   UD_stretch=UD_stretch,
-													   LD_stretch=LD_stretch,
+			img, freq, Class, TID = self.__get_spect__(n=j, s=s, dim=dim,
 													   power_spec=power_spec)
 			out_imigs.append(img)
 			out_freqs.append(freq)
 			out_class.append(Class)
 			out_tarid.append(TID)
-		return out_imigs, out_freqs, out_class, out_tarid			
+		return out_imigs, out_freqs, out_class, out_tarid		
+
+	def batch_get(self, batch_size=10, spect=False, s=None, dim=(0, 50), mem_size=1e9,
+				  power_spec=True):
+		print('HERE FIRST')
+		if isinstance(batch_size, str):
+			try:
+				assert batch_size == 'mem_size'
+			except AssertionError as e:
+				e.args += ('Error Unrecognizer argumenent: <"{}">'.format(batch_size),
+						   'Please either set batch_size to an integer st. 0 < batchsize <= len(PVS())',
+						   'or set batch batch_size equal to <"mem_size"> where the batch will fill the defined memory',
+						   'this is defaulted to 1GB but can be adjusted (in byte space) with the mem_size parameter')
+				raise
+		if isinstance(batch_size, int):
+			try:
+				assert 0 < batch_size <= self.size
+			except AssertionError as e:
+				e.args += ('Error, Invalid batch size', 'Please make sure batch_size parameter is greater than 0', 
+						   'please also make sure batch size parameter is less than or equal to len(PVS())')
+				raise
+		if batch_size == 'mem_size':
+			if spect is False:
+				mem_use_single = getsizeof(self.targets[0])
+				batch_size = int(mem_size / mem_use_single)
+			else:
+				mem_use_single = getsizeof(self.get_spect(s=s, dim=dim,
+														  power_spec=power_spec))
+				batch_size = int(mem_size / mem_use_single)
+		if spect is True and s is None:
+			print('HERE')
+			s = 500
+		if spect is False:
+			for i in range(int(self.size / batch_size)):
+				yield self.__batch_get_lc__(start=i * batch_size,
+											stop=(i * batch_size) + batch_size,
+											mem_size=mem_size)
+		else:
+			for i in range(int(self.size / batch_size)):
+				print('Start is: {}'.format(i * batch_size))
+				print('Stop is: {}'.format((i * batch_size) + batch_size))
+				yield self.__batch_get_spect__(start = i * batch_size,
+											   stop = (i * batch_size) + batch_size,
+											   s=s, mem_size=mem_size, dim=dim)
 
 	def __repr__(self):
 		out = list()
@@ -577,7 +656,14 @@ class POS():
 		return '\n'.join(out)
 
 	def __getitem__(self, key):
-		if isinstance(key, int) or isinstance(key, str):
+		if isinstance(key, int):
+			try:
+				assert key < self.size
+			except AssertionError as e:
+				e.args += ('Index Error!', '{} Not in range for POS of size {}'.format(key, self.size))
+				raise
+			return self.get_object(n=key)
+		elif isinstance(key, str):
 			return self.get_object(n=key)
 
 	def __len__(self):

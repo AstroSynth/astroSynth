@@ -76,6 +76,7 @@ class PVS:
         self.dumps_are_temp = True
         self.single = single_object
         self.T0 = T0
+        self.current = 0
         if name is not None:
             self.name = name.rstrip()
         else:
@@ -315,6 +316,7 @@ class PVS:
                 param:self.f dictionaty filled with functional forms
             param:self.built is True
         """
+        self.max_amp = amp_range[1]
         phase_range, amp_range, freq_range, L_range = self.__params_2_list__(phase_values=phase_range,
                                                                              freq_values=freq_range,
                                                                              amp_values=amp_range,
@@ -326,8 +328,6 @@ class PVS:
         else:
             self.__build_single__(phase_range=phase_range, amp_range=amp_range,
                                   freq_range=freq_range, L_range=L_range)
-
-        self.max_amp = amp_range[1]
         self.built = True
 
     def __dump_data__(self, src, size=1e5, last_dump=0, dump_num=0):
@@ -732,6 +732,7 @@ class PVS:
             except AssertionError as e:
                 e.args += ('Error, Invalid batch size', 'Please make sure batch_size parameter is greater than 0', 
                             'please also make sure batch size parameter is less than or equal to len(PVS())')
+                raise
         if ft is True and s is None:
             s = 300
         if batch_size == 'mem_size':
