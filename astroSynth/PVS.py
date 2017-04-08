@@ -1,11 +1,14 @@
-from .SDM import Gen_FT, NyApprox, Normalize, Make_Syth_LCs
-import numpy as np
+from .SDM import *
 from tqdm import tqdm
 from sys import getsizeof
 from tempfile import TemporaryFile
+import tempfile
 import os
 import shutil
-
+import time
+import math
+import matplotlib.pyplot as plt
+import pandas as pd
 
 """
 PVS (Pulsating Variable Star)- Class
@@ -19,7 +22,8 @@ Description:
 class PVS:
     def __init__(self, Number=100, noise_range=[0.1, 1.1], vmod=True,
                  f=lambda x: np.sin(x), numpoints=100, mag_range=[6, 20],
-                 verbose=0, name=None):
+                 verbose=0, name=None, dpbar=False, lpbar=True, ftemp=False,
+                 match_phase=False, single_object=False, T0=0):
         """
         PVS Initilization
 
@@ -33,11 +37,18 @@ class PVS:
                (python function)
             numpoints: The number of points to generate per light curve (int)
             mag_range: The magnitude range of stars to generate light curves 
-                       from (2-element floar list) [Not currently used]
+                       from (2-element float list) [Not currently used]
             verbose: the verbosity which with to use when representing the 
                      object (0 - default, 1 - add dump info, 2 - add stored 
                      data)
             name: Name of object to use as directory name when saving object
+            dpbar: Diable progress bars class wide (bool)
+            lpbar: leave progress bars after completion class wide (bool)
+            ftemp: Turn the object into a fully temporary object (bool)
+            match_phase: Match the pases of all observations based on 
+                         intervisit time (bool)
+            single_object: Generate one data set with multiple observations
+                           for a single object (bool)
         Returnes:
             Fully formed PVS() type object, ready to build-generate or to 
             load data
@@ -57,6 +68,15 @@ class PVS:
         self.temp_file = True
         self.state = -1
         self.max_amp = 0.1
+        self.dpbar = dpbar
+        self.lpbar = lpbar
+        self.ftemp = ftemp
+        self.match_phase = match_phase
+        self.phasing = dict()
+        self.dumps_are_temp = True
+        self.single = single_object
+        self.T0 = T0
+        self.current = 0
         if name is not None:
             self.name = name.rstrip()
         else:
@@ -69,6 +89,11 @@ class PVS:
             self.f = f
             self.built = True
             self.vmod = False
+
+        if self.match_phase is True:
+            self.ivist = self.__list_check__(ivist)
+        else:
+            self.ivist = None
 
     @staticmethod
     def _seed_generation_(seed=1):
@@ -97,7 +122,24 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.3.5.1 Development')
+        print('Version 0.5.0 Development')
+
+    def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
+                         freq_range=[1e-7, 1], L_range=[1, 3]):
+        kwargs = dict()
+        kwargs['num'] = np.random.randint(L_range[0],
+                                          L_range[1] + 1)
+        kwargs['phase'] = np.random.uniform(phase_range[0],
+                                            phase_range[1],
+                                            kwargs['num'])
+        kwargs['amp'] = np.random.uniform(amp_range[0],
+                                          amp_range[1],
+                                          kwargs['num'])
+        kwargs['freq'] = np.random.uniform(freq_range[0],
+                                           freq_range[1],
+                                           kwargs['num'])
+        self.kwargs = kwargs
+        self.f = lambda x, d: self.__mode_addition__(x, **d)
 
     def __build_func__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                        freq_range=[1e-7, 1], L_range=[1, 3]):
@@ -137,14 +179,30 @@ class PVS:
                 param:self.kwargs dicitonary filled with parameters for funational form
                 param:self.f dictionaty filled with functional forms
         """
+        if self.match_phase is True:
+            break_size = np.random.uniform(self.ivist[0],
+                                           self.ivist[1],
+                                           self.size)
         if self.vmod is True:
-            for i in tqdm(range(self.size), desc='Building Light Curve Functional Form'):
+            for i in tqdm(range(self.size), desc='Building Light Curve Functional Form',
+                          leave=self.lpbar, disable=self.dpbar):
                 kwargs = dict()
                 kwargs['num'] = np.random.randint(L_range[0],
                                                   L_range[1] + 1)
-                kwargs['phase'] = np.random.uniform(phase_range[0],
-                                                    phase_range[1],
-                                                    kwargs['num'])
+                if self.match_phase is True:
+                    if i == 0:
+                        kwargs['phase'] = np.random.uniform(phase_range[0],
+                                                            phase_range[1],
+                                                            kwargs['num'])
+                    else:
+                        cont_phase = list()
+                        for p, f in zip(prev_phasing, prev_frequency):
+                            cont_phase.append(p + np.pi * math.modf((break_size[i] * f))[0])
+                        kwargs['phase'] = cont_phase
+                else:
+                    kwargs['phase'] = np.random.uniform(phase_range[0],
+                                                        phase_range[1],
+                                                        kwargs['num'])
                 kwargs['amp'] = np.random.uniform(amp_range[0],
                                                   amp_range[1],
                                                   kwargs['num'])
@@ -152,6 +210,8 @@ class PVS:
                                                    freq_range[1],
                                                    kwargs['num'])
                 self.kwargs[i] = kwargs
+                prev_phasing = kwargs['phase']
+                prev_frequency = kwargs['freq']
                 self.f[i] = lambda x, d: self.__mode_addition__(x, **d)
     @staticmethod
     def __mode_addition__(x, num=1, phase=[0], amp=[1], freq=[1]):
@@ -193,12 +253,26 @@ class PVS:
         phase = np.array(phase)
         amp = np.array(amp)
         freq = np.array(freq)
-
         fout = amp[0] * np.sin(2 * np.pi * freq[0] * x + phase[0])
         for i in range(1, num):
             fout += amp[i] * np.sin(2 * np.pi * freq[i] * x + phase[i])
 
         return fout
+
+    def __list_check__(self, l):
+        if isinstance(l, list):
+            return l
+        else:
+            return [l, l]
+
+    def __params_2_list__(self, phase_values, amp_values,
+                        freq_values, L_values):
+        phase = self.__list_check__(phase_values)
+        amp = self.__list_check__(amp_values)
+        freq = self.__list_check__(freq_values)
+        L = self.__list_check__(L_values)
+
+        return phase, amp, freq, L
 
     def build(self, phase_range=[0, np.pi], amp_range=[0, 1],
               freq_range=[1e-7, 1], L_range=[1, 3], seed=1):
@@ -242,13 +316,104 @@ class PVS:
                 param:self.f dictionaty filled with functional forms
             param:self.built is True
         """
-        self._seed_generation_(seed)
-        self.__build_func__(phase_range=phase_range, amp_range=amp_range,
-                            freq_range=freq_range, L_range=L_range)
         self.max_amp = amp_range[1]
+        phase_range, amp_range, freq_range, L_range = self.__params_2_list__(phase_values=phase_range,
+                                                                             freq_values=freq_range,
+                                                                             amp_values=amp_range,
+                                                                             L_values=L_range)
+        # self._seed_generation_(seed)
+        if self.single is False:
+            self.__build_func__(phase_range=phase_range, amp_range=amp_range,
+                                freq_range=freq_range, L_range=L_range)
+        else:
+            self.__build_single__(phase_range=phase_range, amp_range=amp_range,
+                                  freq_range=freq_range, L_range=L_range)
         self.built = True
 
-    def generate(self, pfrac=0.1):
+    def __dump_data__(self, src, size=1e5, last_dump=0, dump_num=0):
+        self.dumps_are_temp = True
+        self.dumps[dump_num] = TemporaryFile()
+        self.class_dumps[dump_num] = TemporaryFile()
+        self.item_ref[dump_num] = [last_dump, len(src) + last_dump]
+        np.save(self.dumps[dump_num], np.array(src))
+        np.save(self.class_dumps[dump_num], self.classification)
+        self.classification = np.zeros((0))
+
+    def __pick_pulsator__(self, pfrac=0.1):
+        rand_pick = np.random.uniform(0, 10)
+        if rand_pick < pfrac * 10:
+            pulsator = True
+            self.classification = np.append(self.classification, 1)
+        else:
+            pulsator = False
+            self.classification = np.append(self.classification, 0)
+        return pulsator
+
+    def __generate_multi__(self, pfrac=0.1, exposure_time=30):
+        dump_num = 0
+        last_dump = 0
+        list_lcs = list()
+        obs_time = self.depth * exposure_time
+        for i in tqdm(range(self.size), desc='Geneating Light Curves',
+                      leave=self.lpbar, disable=self.dpbar):
+            pulsator = self.__pick_pulsator__(pfrac=pfrac)
+            if pulsator:
+                self.classification = np.append(self.classification, 1)
+            else:
+                self.classification = np.append(self.classification, 0)
+            if self.vmod is True:
+                tlc = Make_Syth_LCs(f=lambda x: self.f[i](x, self.kwargs[i]), pulsator=pulsator,
+                                        numpoints=self.depth,
+                                        noise_range=self.noise_range, start_time=self.T0,
+                                        end_time=self.T0 + obs_time)
+            else:
+                tlc = Make_Syth_LCs(f=self.f, pulsator=pulsator,
+                                        numpoints=self.depth,
+                                        noise_range=self.noise_range, start_time=self.T0,
+                                        end_time=self.T0 + obs_time)
+            list_lcs.append(tlc)
+            if getsizeof(list_lcs) > 1e5:
+                self.__dump_data__(list_lcs, last_dump=last_dump, dump_num=dump_num)
+                dump_num += 1
+                last_dump = i
+                list_lcs = list()
+            self.item_ref[-1] = [last_dump + 1, len(list_lcs) + last_dump]
+        self.lcs = np.array(list_lcs)
+        self.temp_file = True
+
+    def __generate_single__(self, visit_range=[1, 10], visit_size_range=[10, 100],
+                            pfrac=0.1, exposure_time=30, break_size_range=[5, 25],
+                            etime_units=u.second, btime_units=u.day, vtime_units=u.hour):
+        pulsator = self.__pick_pulsator__(pfrac=pfrac)
+        if pulsator:
+            classification = 1
+        else:
+            classification = 0
+        obs_time = self.depth * exposure_time
+        tlc = Make_Syth_LCs(f=lambda x: self.f(x, self.kwargs), pulsator=pulsator,
+                            numpoints=self.depth, noise_range=self.noise_range,
+                            start_time=self.T0, end_time=self.T0 + obs_time)
+        tlc = np.array(tlc).T
+        times, fluxs, integration_time = Make_Visits(tlc, visit_range=visit_range,
+                                                     visit_size_range=visit_size_range,
+                                                     break_size_range=break_size_range,
+                                                     exposure_time=exposure_time,
+                                                     vtime_units=vtime_units,
+                                                     btime_units=btime_units,
+                                                     etime_units=etime_units,
+                                                     time_col=1, flux_col=0)
+        if len(times) == 1:
+            self.lcs = np.array([[times[0], fluxs[0]]])
+        else:
+            self.lcs = np.array([fluxs, times]).T
+        self.size = len(self.lcs)
+        for index, _ in enumerate(self.lcs):
+            self.classification = np.append(self.classification, classification)
+
+    def generate(self, pfrac=0.1, vtime_units=u.hour,
+                 btime_units=u.day, exposure_time=30,
+                 visit_range=[1, 10], visit_size_range=[0.5, 2],
+                 break_size_range=[10, 100], etime_units=u.second):
         """
         description:
             generate the data given an already build PVS() object 
@@ -288,41 +453,14 @@ class PVS:
             e.args += ('PVS objects functional form not built',
                        'have you run PVS.build()?')
             raise
-
-        dump_num = 0
-        last_dump = 0
         self.generated = True
-        list_lcs = list()
-        for i in tqdm(range(self.size), desc='Geneating Light Curves'):
-            rand_pick = np.random.uniform(0, 10)
-            if rand_pick < pfrac * 10:
-                pulsator = True
-                self.classification = np.append(self.classification, 1)
-            else:
-                pulsator = False
-                self.classification = np.append(self.classification, 0)
-            if self.vmod is True:
-                tlc = Make_Syth_LCs(f=lambda x: self.f[i](x, self.kwargs[i]), pulsator=pulsator,
-                                        numpoints=self.depth,
-                                        noise_range=self.noise_range)
-            else:
-                tlc = Make_Syth_LCs(f=self.f, pulsator=pulsator,
-                                        numpoints=self.depth,
-                                        noise_range=self.noise_range)
-            list_lcs.append(tlc)
-            if getsizeof(list_lcs) > 1e5:
-                self.dumps[dump_num] = TemporaryFile()
-                self.class_dumps[dump_num] = TemporaryFile()
-                self.item_ref[dump_num] = [last_dump, len(list_lcs) + last_dump]
-                np.save(self.dumps[dump_num], np.array(list_lcs))
-                np.save(self.class_dumps[dump_num], self.classification)
-                dump_num += 1
-                last_dump = i
-                list_lcs = list()
-                self.classification = np.zeros((0))
-            self.item_ref[-1] = [last_dump + 1, len(list_lcs) + last_dump]
-        self.lcs = np.array(list_lcs)
-        self.temp_file = True
+        if self.single is False:
+            self.__generate_multi__(pfrac=pfrac, exposure_time=exposure_time)
+        else:
+            self.__generate_single__(pfrac=pfrac, exposure_time=exposure_time,
+                                     visit_range=visit_range, visit_size_range=visit_size_range,
+                                     break_size_range=break_size_range, vtime_units=vtime_units,
+                                     btime_units=btime_units, etime_units=etime_units)
 
     def __get_lc__(self, n=0, state_change=False):
         """
@@ -356,46 +494,50 @@ class PVS:
                 location retrived
                 if those changes then param:self.state will update to represent that
         """
-
         try:
             assert self.generated is True
         except AssertionError as e:
             e.args += ('PVS objects Light Curves are not generated',
                        'have you run PVS.generate()?')
             raise
-        file_num = -1
-        base = 0
-        for k in self.item_ref:
-            if int(self.item_ref[k][0]) <= n <= int(self.item_ref[k][1]):
-                file_num = int(k)
-                base = int(self.item_ref[k][0])
-                break
+        if self.size != 1:
+            file_num = -1
+            base = 0
+            for k in self.item_ref:
+                if int(self.item_ref[k][0]) <= n <= int(self.item_ref[k][1]):
+                    file_num = int(k)
+                    base = int(self.item_ref[k][0])
+                    break
 
-        if file_num != self.state:
-            if self.temp_file is True:
-                self.dumps[file_num].seek(0)
-                self.class_dumps[file_num].seek(0)
-            tlcs = np.load(self.dumps[file_num])
-            tclass = np.load(self.class_dumps[file_num])
-            if state_change is True:
-                self.lcs = tlcs
-                self.classification = tclass
-                self.state = file_num
+            if file_num != self.state:
+                if self.temp_file is True:
+                    self.dumps[file_num].seek(0)
+                    self.class_dumps[file_num].seek(0)
+                tlcs = np.load(self.dumps[file_num])
+                tclass = np.load(self.class_dumps[file_num])
+                if state_change is True:
+                    self.lcs = tlcs
+                    self.classification = tclass
+                    self.state = file_num
 
-            if self.temp_file is True:
-                self.dumps[file_num].seek(0, os.SEEK_END)
-                self.class_dumps[file_num].seek(0, os.SEEK_END)
-            return tlcs[n - base - 1].T[1], tlcs[n - base - 1].T[0], tclass[n - base - 1], n
+                if self.temp_file is True:
+                    self.dumps[file_num].seek(0, os.SEEK_END)
+                    self.class_dumps[file_num].seek(0, os.SEEK_END)
+                return tlcs[n - base - 1].T[1], tlcs[n - base - 1].T[0], tclass[n - base - 1], n
+            else:
+                return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
         else:
-            return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
+            return self.lcs[0][0], self.lcs[0][1], self.classification[0], 0
 
     def xget_lc(self, stop=None, start=0):
         if stop is None:
             stop = self.size
+        if stop > self.size:
+            stop = self.size
         for i in range(start, stop):
             yield self.__get_lc__(n=i)
 
-    def save(self):
+    def save(self, path=None, ftemp_override=False):
         try:
             assert self.generated is True
         except AssertionError as e:
@@ -403,74 +545,69 @@ class PVS:
                        'have you run PVS.generate()?')
             raise
 
-        path = "{}/{}".format(os.getcwd(), self.name)
-        if os.path.exists(path):
-            shutil.rmtree(path)
-        os.mkdir(path)
-
-        for dump, cdump in zip(self.dumps, self.class_dumps):
-            self.dumps[dump].seek(0)
-            self.class_dumps[cdump].seek(0)
-            tlc = np.load(self.dumps[dump])
-            tclass = np.load(self.class_dumps[cdump])
-            self.dumps[dump].seek(0, os.SEEK_END)
-            self.class_dumps[cdump].seek(0, os.SEEK_END)
+        if path is None:
             if self.name is not None:
+                if self.ftemp is False or ftemp_override is True:
+                    path = "{}/{}".format(os.getcwd(), self.name)
+                    if os.path.exists(path):
+                        shutil.rmtree(path)
+                    os.mkdir(path)
+                elif self.ftemp is True and ftemp_override is False:
+                    path = "{}/.{}_temp".format(os.getcwd(), self.name)
+                    if os.path.exists(path):
+                        shutil.rmtree(path)
+                    os.mkdir(path)
+            else:
+                if self.ftemp is False or ftemp_override is True:
+                    path = os.getcwd()
+                elif self.ftemp is True and ftemp_override is False:
+                    path = "{}/.{}_temp".format(os.getcwd(), time.asctime().replace(' ', '_'))
+                    if os.path.exists(path):
+                        shutil.rmtree(path)
+                    os.mkdir(path)
+        for dump, cdump in zip(self.dumps, self.class_dumps):
+            if dump != -1:
+                if self.dumps_are_temp is True:
+                    self.dumps[dump].seek(0)
+                    self.class_dumps[cdump].seek(0)
+                tlc = np.load(self.dumps[dump])
+                tclass = np.load(self.class_dumps[cdump])
+                if self.dumps_are_temp is True:
+                    self.dumps[dump].seek(0, os.SEEK_END)
+                    self.class_dumps[cdump].seek(0, os.SEEK_END)
                 np.save("{}/LightCurve_{}.npy".format(path, dump), tlc)
                 np.save("{}/LightCurve_Class_{}.npy".format(path, dump), tclass)
-            else:
-                np.save("{}/LightCurve_{}.npy".format(os.getcwd(), dump), tlc)
-                np.save("{}/LightCurve_Class_{}.npy".format(os.getcwd(), dump), tclass)
+        if len(self.lcs) > 0:
+            np.save("{}/LightCurve_{}.npy".format(path, -1), self.lcs)
+            np.save("{}/LightCurve_Class_{}.npy".format(path, -1), self.classification)
 
-        if len(self.lcs > 0):
-            if self.name is not None:
-                np.save("{}/LightCurve_{}.npy".format(path, -1), self.lcs)
-                np.save("{}/LightCurve_Class_{}.npy".format(path, -1), self.classification)
-            else:
-                np.save("{}/LightCurve_{}.npy".format(os.getcwd(), -1), self.lcs)
-                np.save("{}/LightCurve_Class_{}.npy".format(os.getcwd(), -1), self.classification)
+        self._save_model_(path=path)
+        self.dumps_are_temp = False
+        return path
 
-        self._save_model_()
+    def _save_model_(self, path = None):
+        try:
+            assert path is not None
+        except AssertionError as e:
+            e.args += ('No Save path set in _save_model_', 'Has path been set?')
+            raise
 
-    def _save_model_(self):
-        if self.name is not None:
-            path = "{}/{}".format(os.getcwd(), self.name)
-            if not os.path.exists(path):
-                os.mkdir(path)
-            with open('{}/item_loc_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                for i in self.item_ref:
-                    out.append("{}:{}:{}".format(i, self.item_ref[i][0], self.item_ref[i][1]))
-                out = '\n'.join(out)
-                f.write(out)
-            with open('{}/object_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                out.append('Size:{}'.format(self.size))
-                out.append('Depth:{}'.format(self.depth))
-                out.append('Name:{}'.format(self.name))
-                out.append('Verbose:{}'.format(self.verbose))
-                out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
-                out.append('MAmp:{}'.format(self.max_amp))
-                out = '\n'.join(out)
-                f.write(out)
-        else:
-            path = os.getcwd()
-            with open('{}/item_loc_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                for i in self.item_ref:
-                    out.append("{}:{}:{}".format(i, self.item_ref[i][0], self.item_ref[i][1]))
-                out = '\n'.join(out)
-                f.write(out)
-            with open('{}/object_meta.PVS'.format(path), 'w') as f:
-                out = list()
-                out.append('Size:{}'.format(self.size))
-                out.append('Depth:{}'.format(self.depth))
-                out.append('Name:{}'.format(self.name))
-                out.append('Verbose:{}'.format(self.verbose))
-                out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
-                out.append('MAmp:{}'.format(self.max_amp))
-                out = '\n'.join(out)
-                f.write(out)
+        with open('{}/item_loc_meta.PVS'.format(path), 'w') as f:
+            out = list()
+            for i in self.item_ref:
+                out.append("{}:{}:{}".format(i, self.item_ref[i][0], self.item_ref[i][1]))
+            out = '\n'.join(out)
+            f.write(out)
+        with open('{}/object_meta.PVS'.format(path), 'w') as f:
+            out = list()
+            out.append('Size:{}'.format(self.size))
+            out.append('Depth:{}'.format(self.depth))
+            out.append('Name:{}'.format(self.name))
+            out.append('Verbose:{}'.format(self.verbose))
+            out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
+            out.append('MAmp:{}'.format(self.max_amp))
+            out = '\n'.join(out)
+            f.write(out)
 
     def load(self, directory='.', start=-1):
         files = os.listdir(directory)
@@ -547,6 +684,7 @@ class PVS:
 
     def __repr__(self):
         l = list()
+        l.append('Name: {n}'.format(n=self.name))
         l.append('Size: {s}'.format(s=self.size))
         l.append('Noise Range: {n}'.format(n=self.noise_range))
         l.append('Magnitude Range: {m}'.format(m=self.mag_range))
@@ -565,18 +703,18 @@ class PVS:
         out = '\n'.join(l)
         return out
 
-    def get_ft(self, n=0, s=300, state_change=False):
+    def get_ft(self, n=0, s=300, state_change=False, power_spec=False):
         Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
-        FT = Gen_FT(Time, Flux, NyApprox(Time), s)
+        FT = Gen_FT(Time, Normalize(Flux, df=False), NyApprox(Time), s, power_spec=power_spec)
         return FT['Freq'], FT['Amp'], Classification, n
 
-    def xget_ft(self, start=0, stop=None, s=300):
+    def xget_ft(self, start=0, stop=None, s=300, power_spec=False):
         if stop is None:
             for i in range(start, self.size):
-                yield self.get_ft(n=i, s=s)
+                yield self.get_ft(n=i, s=s, power_spec=power_spec)
         else:
             for i in range(start, stop):
-                yield self.get_ft(n=i, s=s)
+                yield self.get_ft(n=i, s=s, power_spec=power_spec)
 
     def batch_get(self, batch_size=10, ft=False, s=None, mem_size=1e9):
         if isinstance(batch_size, str):
@@ -594,6 +732,7 @@ class PVS:
             except AssertionError as e:
                 e.args += ('Error, Invalid batch size', 'Please make sure batch_size parameter is greater than 0', 
                             'please also make sure batch size parameter is less than or equal to len(PVS())')
+                raise
         if ft is True and s is None:
             s = 300
         if batch_size == 'mem_size':
