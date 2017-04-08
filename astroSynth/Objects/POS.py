@@ -187,7 +187,6 @@ class POS():
 				lastdump = j
 		self.target_ref[-1] = [lastdump, self.size - 1]
 		if self.save_exists is True:
-			print('Saving The Survey')
 			path = "{}/.{}_temp".format(os.getcwd(), self.prefix)
 			self.__save_survey__(path)
 
@@ -303,7 +302,6 @@ class POS():
 				UD_stretch = float(len(self.targets[target_id])/dim[1])
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
-				print('Stretches A are: {}, {}'.format(UD_stretch, LD_stretch))
 				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
 					Amps.append(compress_to_1(Amp))
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
@@ -312,7 +310,6 @@ class POS():
 				UD_stretch = float(len(pull_from[target_id])/dim[1])
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
-				print('Stretches B are: {}, {}'.format(UD_stretch, LD_stretch))
 				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
 					Amps.append(compress_to_1(Amp))
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
@@ -322,7 +319,6 @@ class POS():
 			UD_stretch = float(len(self.targets[target_id])/dim[1])
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
-			print('Stretches C are: {}, {}'.format(UD_stretch, LD_stretch))
 			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
 				Amps.append(compress_to_1(Amp))
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
@@ -604,7 +600,6 @@ class POS():
 
 	def batch_get(self, batch_size=10, spect=False, s=None, dim=(0, 50), mem_size=1e9,
 				  power_spec=True):
-		print('HERE FIRST')
 		if isinstance(batch_size, str):
 			try:
 				assert batch_size == 'mem_size'
@@ -630,7 +625,6 @@ class POS():
 														  power_spec=power_spec))
 				batch_size = int(mem_size / mem_use_single)
 		if spect is True and s is None:
-			print('HERE')
 			s = 500
 		if spect is False:
 			for i in range(int(self.size / batch_size)):
@@ -639,8 +633,6 @@ class POS():
 											mem_size=mem_size)
 		else:
 			for i in range(int(self.size / batch_size)):
-				print('Start is: {}'.format(i * batch_size))
-				print('Stop is: {}'.format((i * batch_size) + batch_size))
 				yield self.__batch_get_spect__(start = i * batch_size,
 											   stop = (i * batch_size) + batch_size,
 											   s=s, mem_size=mem_size, dim=dim)
