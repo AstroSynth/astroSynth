@@ -252,7 +252,6 @@ class PVS:
         phase = np.array(phase)
         amp = np.array(amp)
         freq = np.array(freq)
-
         fout = amp[0] * np.sin(2 * np.pi * freq[0] * x + phase[0])
         for i in range(1, num):
             fout += amp[i] * np.sin(2 * np.pi * freq[i] * x + phase[i])
@@ -706,7 +705,7 @@ class PVS:
 
     def get_ft(self, n=0, s=300, state_change=False, power_spec=False):
         Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
-        FT = Gen_FT(Time, Flux, NyApprox(Time), s, power_spec=power_spec)
+        FT = Gen_FT(Time, Normalize(Flux, df=False), NyApprox(Time), s, power_spec=power_spec)
         return FT['Freq'], FT['Amp'], Classification, n
 
     def xget_ft(self, start=0, stop=None, s=300, power_spec=False):

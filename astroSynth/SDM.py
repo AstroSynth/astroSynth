@@ -5,6 +5,7 @@ import math
 import random as r
 from tqdm import tqdm
 import astropy.units as u
+from scipy.interpolate import interp1d
 """
 Description:
     General Helper functions for light curve and fourier analysis
@@ -12,6 +13,9 @@ Description:
 
 """
 
+def compress_to_1(data):
+    m = interp1d([min(data), max(data)], [0, 1])
+    return [float(m(x)) for x in data]
 
 def Mag_2_Flux(m, F0):
     """
@@ -343,10 +347,10 @@ def Make_Syth_LCs(noise_range=[0.1, 1.1], f=lambda x: np.sin(x),
     """
     noise = r.uniform(noise_range[0], noise_range[1])
     if pulsator is True:
-        lcs = Make_LC(noise_level=noise * 2.5, f=f, numpoints=numpoints,
+        lcs = Make_LC(noise_level=noise, f=f, numpoints=numpoints,
                       start_time=start_time, end_time=end_time)
     else:
-        lcs = Make_LC(noise_level=noise * 2.5, f=lambda x: 0,
+        lcs = Make_LC(noise_level=noise, f=lambda x: 0,
                       numpoints=numpoints, start_time=start_time,
                       end_time=end_time)
     return lcs.as_matrix().tolist()

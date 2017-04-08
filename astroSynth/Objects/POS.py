@@ -2,6 +2,7 @@ import os
 import time
 import names
 import shutil
+from ..SDM import *
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -14,7 +15,7 @@ from scipy.signal import spectrogram
 
 
 class POS():
-	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.1, 1.1],
+	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.05, 0.1],
 		         number=1000, numpoints=300, verbose=0, name=None):
 		if name is None:
 			name = prefix
@@ -61,28 +62,45 @@ class POS():
 	def __seed_generation__(seed=1):
 		np.random.seed(seed)
 
+	def __list_check__(self, l):
+		if isinstance(l, list):
+			return l
+		else:
+			return [l, l]
+
 	def __build_survey__(self, amp_range=[0, 0.2],freq_range = [1, 100],
 	  		  			 phase_range=[0, np.pi], L_range=[1, 3],
     		  			 amp_varience=0.01, freq_varience=0.01, 
     		  			 phase_varience=0.01,  obs_range=[10, 100]):
 		for i in tqdm(range(self.size)):
-			pulsation_modes = np.random.randint(L_range[0],
-				                                L_range[1] + 1)
+			L_range = self.__list_check__(L_range)
+			amp_range = self.__list_check__(amp_range)
+			phase_range = self.__list_check__(phase_range)
+			freq_range = self.__list_check__(freq_range)
+			if L_range[0] != L_range[1]:
+				L_range = [L_range[0], L_range[1] + 1]
+				pulsation_modes = np.random.randint(L_range[0],
+					                                L_range[1])
+			else:
+				pulsation_modes = L_range[0]
 
 			pulsation_amp = np.random.uniform(amp_range[0],
-				                              amp_range[1])#,
-				                              #pulsation_modes)
+				                              amp_range[1],
+				                              pulsation_modes)
 			pap = amp_varience * pulsation_amp
+			pap = 0
 
 			pulsation_frequency = np.random.uniform(freq_range[0],
-				                                    freq_range[1])#,
-				                                    #pulsation_modes)
+				                                    freq_range[1],
+				                                    pulsation_modes)
 			pfp = freq_varience * pulsation_frequency
+			pfp = 0
 
 			pulsation_phase = np.random.uniform(phase_range[0],
-		    	                                phase_range[1])#,
-		    	                                #pulsation_modes)
+		    	                                phase_range[1],
+		    	                                pulsation_modes)
 			ppp = phase_varience * pulsation_phase
+			ppp = 0
 
 			observations = np.random.randint(obs_range[0],
 											 obs_range[1])
@@ -112,7 +130,7 @@ class POS():
 
 				raise
 
-		self.__seed_generation__(seed=seed)
+		# self.__seed_generation__(seed=seed)
 
 		if load_from_file is True:
 			ar, pr, fr, lr = self.__load_spec_class__(path)
@@ -276,17 +294,17 @@ class POS():
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
 				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
-					Amps.append(Amp)
+					Amps.append(compress_to_1(Amp))
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, self.targets[target_id][0][2], target_id)
 			else:
 				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
-					Amps.append(Amp)
+					Amps.append(compress_to_1(Amp))
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id)
 		else:
 			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
-				Amps.append(Amp)
+				Amps.append(compress_to_1(Amp))
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id)	
 		return out_tuple
@@ -301,7 +319,7 @@ class POS():
 			yield self.__get_spect__(n=i, s=s, UD_stretch=UD_stretch,
 									 LD_stretch=LD_stretch, power_spec=False)
 
-	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False):
+	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False, power_spec=True):
 		target_id = self.__get_target_id__(n)
 		target_num = self.__get_target_number__(n)
 
@@ -313,11 +331,11 @@ class POS():
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
-				out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s)
+				out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s, power_spec=power_spec)
 			else:
-				out_tuple = pull_from[target_id].get_ft(n=sub_element, s=s)
+				out_tuple = pull_from[target_id].get_ft(n=sub_element, s=s, power_spec=power_spec)
 		else:
-			out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s)
+			out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s, power_spec=power_spec)
 		return out_tuple
 
 	def __load_dump__(self, n=0, state_change=True):
