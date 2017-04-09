@@ -486,20 +486,20 @@ class POS():
 		for d, p in zip(dumps, dump_dirs):	
 			self.dumps[d] = p
 		with open('{}/Item_Loc.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc="Item Loc"):
 				data = line.split(':')
 				self.target_ref[int(data[0])] = [int(data[1]), int(data[2])]
 		with open('{}/Item_Ref.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc="Item Ref"):
 				data = line.split(':')
 				self.int_name_ref[int(data[0])] = data[1].rstrip()
 				self.name_int_ref[data[1].rstrip()] = int(data[0])
 		with open('{}/Object_Class.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc="Object Class"):
 				data = line.split(':')
 				self.classes[data[0].rstrip()] = int(data[1])
 		with open('{}/Object_Meta.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc='Object Meta'):
 				data = line.split(':')
 				if data[0] == 'Size':
 					self.size = int(data[1])
@@ -517,10 +517,12 @@ class POS():
 					self.mag_range = [float(data[1]), float(data[2])]
 		dumps = [int(x) for x in dumps]
 		dumps = sorted(dumps)
-		for dump in dumps:
-			self.__load_dump__(n=dump)
+		self.__load_dump__(n=0)
+		self.state = 0
+		# for dump in tqdm(dumps, desc='dumps'):
+		# 	self.__load_dump__(n=dump)
 		
-		self.state = dumps[-1]
+		# self.state = dumps[-1]
 
 	def names(self):
 		return list(self.targets.keys())
