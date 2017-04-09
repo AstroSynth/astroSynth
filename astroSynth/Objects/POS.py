@@ -412,7 +412,7 @@ class POS():
 		if os.path.exists(mem_path):
 			shutil.rmtree(mem_path)
 		os.mkdir(mem_path)	
-		for target in self.targets:
+		for target in tqdm(self.targets, total=self.size, desc='Saving {} to Disk'.format(self.name)):
 			if self.targets[target] is not None:
 				target_save_path = "{}/{}".format(mem_path, target)
 				if os.path.exists(target_save_path):
