@@ -76,41 +76,32 @@ class POS():
 			amp_range = self.__list_check__(amp_range)
 			phase_range = self.__list_check__(phase_range)
 			freq_range = self.__list_check__(freq_range)
-			if L_range[0] != L_range[1]:
-				L_range = [L_range[0], L_range[1] + 1]
-				pulsation_modes = np.random.randint(L_range[0],
-					                                L_range[1])
-			else:
-				pulsation_modes = L_range[0]
+			# if L_range[0] != L_range[1]:
+			# 	L_range = [L_range[0], L_range[1]]
+			# 	pulsation_modes = np.random.randint(L_range[0],
+			# 		                                L_range[1])
+			# else:
+			# 	pulsation_modes = L_range[0]
 
 			pulsation_amp = np.random.uniform(amp_range[0],
 				                              amp_range[1])
-			pap = amp_varience * pulsation_amp
-			pap = 0
 
 			pulsation_frequency = np.random.uniform(freq_range[0],
 				                                    freq_range[1])
-			pfp = freq_varience * pulsation_frequency
-			pfp = 0
 
 			pulsation_phase = np.random.uniform(phase_range[0],
 		    	                                phase_range[1])
-			ppp = phase_varience * pulsation_phase
-			ppp = 0
-
-			observations = np.random.randint(obs_range[0],
-											 obs_range[1])
 
 			target_name = names.get_last_name().replace(' ', '-')
 			target_id = "{}-{}".format(target_name, np.random.randint(0, 5001))
-			self.targets[target_id] = PVS(Number=observations, numpoints=self.depth, 
+			self.targets[target_id] = PVS(Number=1, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
 				                          dpbar=True, ftemp=True, single_object=True)
-			self.targets[target_id].build(amp_range=[pulsation_amp - pap, pulsation_amp + pap],
-										  freq_range=[pulsation_frequency - pfp, pulsation_frequency + pfp],
-										  phase_range=[pulsation_phase - ppp, pulsation_phase + ppp],
-										  L_range=[pulsation_modes, pulsation_modes])
+			self.targets[target_id].build(amp_range=amp_range,
+										  freq_range=freq_range,
+										  phase_range=phase_range,
+										  L_range=L_range)
 			self.int_name_ref[i] = target_id
 			self.name_int_ref[target_id] = i
 
@@ -271,6 +262,12 @@ class POS():
 				c = self.targets[target_id][sn][2]
 		return times, fluxs, c, target_id
 
+	def get_lc(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
+		return self.__get_lc__(n=n, full=full, sn=sn, start=start, stop=stop, state_change=state_change)
+
+	def get_full_lc(self, n=0, state_change=False):
+		return self.__get_lc__(n=n, full=True, state_change=state_change)
+
 	def xget_lc(self, start=0, stop=None, state_change=True):
 		if stop is None:
 			stop = self.size
@@ -283,7 +280,7 @@ class POS():
 		return self.__get_lc__(n=n, full=False, sn=sub_element)
 
 
-	def __get_spect__(self, n=0, s=500, dim=(0, 50),
+	def __get_spect__(self, n=0, s=500, dim=50,
 					  power_spec=True, state_change=True):
 		target_id = self.__get_target_id__(n)
 		target_num = self.name_int_ref[target_id]
@@ -297,7 +294,7 @@ class POS():
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
-				UD_stretch = float(len(self.targets[target_id])/dim[1])
+				UD_stretch = float(len(self.targets[target_id])/dim)
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
@@ -305,7 +302,7 @@ class POS():
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, self.targets[target_id][0][2], target_id)
 			else:
-				UD_stretch = float(len(pull_from[target_id])/dim[1])
+				UD_stretch = float(len(pull_from[target_id])/dim)
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
@@ -314,34 +311,33 @@ class POS():
 					         Freq, pull_from[target_id][0][2], target_id)
 		else:
 
-			UD_stretch = float(len(self.targets[target_id])/dim[1])
+			UD_stretch = float(len(self.targets[target_id])/dim)
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
 			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
 				Amps.append(compress_to_1(Amp))
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id)	
-		out_img = misc.imresize(out_tuple[0], (dim[1], s), interp='cubic')
+		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
 		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3])
 		return out_tuple
 
-	def get_spect(self, n=0, s=500, dim=(50, 50), power_spec=True, 
+	def get_spect(self, n=0, s=500, dim=50, power_spec=True, 
 				  state_change=True):
 		return self.__get_spect__(n=n, s=s, dim=dim, power_spec=power_spec,
 								  state_change=state_change)
 
-	def xget_spect(self, start=0, stop=None, s=500, UD_stretch=250,
-		           LD_stretch=1, power_spec=True, state_change=True):
+	def xget_spect(self, start=0, stop=None, s=500, dim=50,
+			       power_spec=True, state_change=True):
 		if stop is None:
 			stop = self.size
 		if stop > self.size:
 			stop = self.size
 		for i in range(start, stop):
-			yield self.__get_spect__(n=i, s=s, UD_stretch=UD_stretch,
-									 LD_stretch=LD_stretch, power_spec=False,
+			yield self.__get_spect__(n=i, s=s, dim=dim, power_spec=False,
 									 state_change=state_change)
 
-	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False, power_spec=True):
+	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False, power_spec=True, ct1=True):
 		target_id = self.__get_target_id__(n)
 		target_num = self.__get_target_number__(n)
 
@@ -358,6 +354,9 @@ class POS():
 				out_tuple = pull_from[target_id].get_ft(n=sub_element, s=s, power_spec=power_spec)
 		else:
 			out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s, power_spec=power_spec)
+		if ct1 is True:
+			comp_As = compress_to_1(out_tuple[1])
+		out_tuple = (out_tuple[0], comp_As, out_tuple[2], out_tuple[3])
 		return out_tuple
 
 	def __load_dump__(self, n=0, state_change=True):
@@ -571,7 +570,7 @@ class POS():
 		return out_times, out_fluxs, out_class, out_tarid
 
 	def __batch_get_spect__(self, start=0, mem_size=1e9, step=1,
-							stop=None, s=500, dim=(50, 50),
+							stop=None, s=500, dim=50,
 							power_spec=True):
 		if stop is None:
 			stop = self.size
@@ -596,7 +595,7 @@ class POS():
 			out_tarid.append(TID)
 		return out_imigs, out_freqs, out_class, out_tarid		
 
-	def batch_get(self, batch_size=10, spect=False, s=None, dim=(0, 50), mem_size=1e9,
+	def batch_get(self, batch_size=10, spect=False, s=None, dim=50, mem_size=1e9,
 				  power_spec=True):
 		if isinstance(batch_size, str):
 			try:
