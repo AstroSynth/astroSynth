@@ -93,7 +93,12 @@ class POS():
 		    	                                phase_range[1])
 
 			target_name = names.get_last_name().replace(' ', '-')
-			target_id = "{}-{}".format(target_name, np.random.randint(0, 5001))
+			cont = False
+			while cont is False:
+				target_id = "{}-{}".format(target_name, np.random.randint(0, 5001))
+				if target_id not in self.targets:
+					cont = True
+
 			self.targets[target_id] = PVS(Number=1, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
 				                          mag_range=self.mag_range, name=target_id, 
