@@ -1,6 +1,7 @@
 import os
 import names
 import shutil
+import numba
 from ..SDM import *
 import numpy as np
 from tqdm import tqdm
@@ -10,6 +11,7 @@ from astroSynth import SDM
 from astropy import units as u
 from tempfile import TemporaryFile
 from scipy.signal import spectrogram
+from multiprocessing import Pool
 from scipy import misc
 
 class POS():
@@ -185,14 +187,14 @@ class POS():
 			self.__save_survey__(path)
 
 	def __get_target_id__(self, n):
-		if isinstance(n, int):
+		if isinstance(n, int) or isinstance(n, np.integer):
 			target_id = self.int_name_ref[n]
 		if isinstance(n, str):
 			target_id = n
 		return target_id
 
 	def __get_target_number__(self, n):
-		if isinstance(n, int):
+		if isinstance(n, int) or isinstance(n, np.integer):
 			target_id = n
 		if isinstance(n, str):
 			target_id = self.name_int_ref[n]
@@ -284,7 +286,6 @@ class POS():
 	def get_lc_sub(self, n=0, sub_element=0):
 		return self.__get_lc__(n=n, full=False, sn=sub_element)
 
-
 	def __get_spect__(self, n=0, s=500, dim=50,
 					  power_spec=True, state_change=True):
 		target_id = self.__get_target_id__(n)
@@ -315,7 +316,6 @@ class POS():
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id)
 		else:
-
 			UD_stretch = float(len(self.targets[target_id])/dim)
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
@@ -519,10 +519,6 @@ class POS():
 		dumps = sorted(dumps)
 		self.__load_dump__(n=0)
 		self.state = 0
-		# for dump in tqdm(dumps, desc='dumps'):
-		# 	self.__load_dump__(n=dump)
-		
-		# self.state = dumps[-1]
 
 	def names(self):
 		return list(self.targets.keys())
@@ -578,7 +574,7 @@ class POS():
 
 	def __batch_get_spect__(self, start=0, mem_size=1e9, step=1,
 							stop=None, s=500, dim=50,
-							power_spec=True):
+							power_spec=True, n_threds=4):
 		if stop is None:
 			stop = self.size
 		mem_use_single = getsizeof(self.__get_spect__(n=0, s=s, dim=dim,
@@ -589,18 +585,28 @@ class POS():
 		else:
 			num *= step
 			num += start
-		out_imigs = list()
-		out_freqs = list()
-		out_class = list()
-		out_tarid = list()
-		for j in range(start, num, step):
-			img, freq, Class, TID = self.__get_spect__(n=j, s=s, dim=dim,
-													   power_spec=power_spec)
-			out_imigs.append(img)
-			out_freqs.append(freq)
-			out_class.append(Class)
-			out_tarid.append(TID)
-		return out_imigs, out_freqs, out_class, out_tarid		
+		p = Pool()
+		data_inputs = range(start, num, step)
+		params = [data_inputs, s, dim, power_spec]
+		pool_params = np.array(self.__gen_pool_params(params)).T
+		pool_output = p.starmap(self.__spect_thread_retive__, pool_params)
+		pool_output = np.array(pool_output)
+		out_imigs = pool_output[:, 0]
+		out_freqs = pool_output[:, 1]
+		out_class = pool_output[:, 2]
+		out_tarid = pool_output[:, 3]
+		return out_imigs, out_freqs, out_class, out_tarid	
+
+	def __gen_pool_params(self, parameters):
+		r = parameters[0]
+		s = [parameters[1]] * len(r)
+		dim = [parameters[2]] * len(r)
+		power_spec = [parameters[3]] * len(r)
+		return [r, s, dim, power_spec]
+
+	def __spect_thread_retive__(self, n, s, dim, power_spec):
+		return self.__get_spect__(n=n, s=s,dim=dim,
+								  power_spec=power_spec)
 
 	def batch_get(self, batch_size=10, spect=False, s=None, dim=50, mem_size=1e9,
 				  power_spec=True):
