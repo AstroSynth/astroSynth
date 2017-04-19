@@ -6,7 +6,7 @@ import tempfile
 import os
 import shutil
 import time
-import numba
+# import numba
 import math
 import matplotlib.pyplot as plt
 import pandas as pd

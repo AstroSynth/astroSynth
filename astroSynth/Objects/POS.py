@@ -1,7 +1,7 @@
 import os
 import names
 import shutil
-import numba
+# import numba
 from ..SDM import *
 import numpy as np
 from tqdm import tqdm
@@ -35,6 +35,7 @@ class POS():
 		self.save_exists = False
 		self.state = -1
 		self.current = 0
+		self.comp_q_s = 0
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -78,21 +79,6 @@ class POS():
 			amp_range = self.__list_check__(amp_range)
 			phase_range = self.__list_check__(phase_range)
 			freq_range = self.__list_check__(freq_range)
-			# if L_range[0] != L_range[1]:
-			# 	L_range = [L_range[0], L_range[1]]
-			# 	pulsation_modes = np.random.randint(L_range[0],
-			# 		                                L_range[1])
-			# else:
-			# 	pulsation_modes = L_range[0]
-
-			pulsation_amp = np.random.uniform(amp_range[0],
-				                              amp_range[1])
-
-			pulsation_frequency = np.random.uniform(freq_range[0],
-				                                    freq_range[1])
-
-			pulsation_phase = np.random.uniform(phase_range[0],
-		    	                                phase_range[1])
 
 			target_name = names.get_last_name().replace(' ', '-')
 			cont = False
@@ -286,12 +272,17 @@ class POS():
 	def get_lc_sub(self, n=0, sub_element=0):
 		return self.__get_lc__(n=n, full=False, sn=sub_element)
 
+	def __compress_spect__(self, spect):
+		spect = np.array(spect)
+		return spect/abs(np.max(spect))
+
 	def __get_spect__(self, n=0, s=500, dim=50,
 					  power_spec=True, state_change=True):
 		target_id = self.__get_target_id__(n)
 		target_num = self.name_int_ref[target_id]
 		LD_stretch = 1
 		dump_num = -1
+		self.count = n
 		for k in self.target_ref:
 			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
 				dump_num = int(k)
@@ -304,7 +295,9 @@ class POS():
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
-					Amps.append(compress_to_1(Amp))
+					# Amps.append(compress_to_1(Amp))
+					Amps.append(Amp)
+				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, self.targets[target_id][0][2], target_id)
 			else:
@@ -312,7 +305,9 @@ class POS():
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
-					Amps.append(compress_to_1(Amp))
+					# Amps.append(compress_to_1(Amp))
+					Amps.append(Amp)
+				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id)
 		else:
@@ -320,7 +315,9 @@ class POS():
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
 			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
-				Amps.append(compress_to_1(Amp))
+				#Amps.append(compress_to_1(Amp))
+				Amps.append(Amp)
+			# Amps = self.__compress_spect__(Amps)
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id)	
 		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
@@ -588,7 +585,7 @@ class POS():
 		p = Pool()
 		data_inputs = range(start, num, step)
 		params = [data_inputs, s, dim, power_spec]
-		pool_params = np.array(self.__gen_pool_params(params)).T
+		pool_params = np.array(self.__gen_pool_params__(params)).T
 		pool_output = p.starmap(self.__spect_thread_retive__, pool_params)
 		pool_output = np.array(pool_output)
 		out_imigs = pool_output[:, 0]
@@ -597,7 +594,7 @@ class POS():
 		out_tarid = pool_output[:, 3]
 		return out_imigs, out_freqs, out_class, out_tarid	
 
-	def __gen_pool_params(self, parameters):
+	def __gen_pool_params__(self, parameters):
 		r = parameters[0]
 		s = [parameters[1]] * len(r)
 		dim = [parameters[2]] * len(r)

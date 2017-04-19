@@ -4,7 +4,7 @@ from os import path
 HERE = path.abspath(path.dirname(__file__))
 
 setup(name='astroSynth',
-      version='0.5',
+      version='0.5.1',
       description='Very Basic Astrophysics Synthetic Generation Suite',
       url='https://github.com/tboudreaux/astroSynth.git',
       author='Thomas Boudreaux',
@@ -23,7 +23,6 @@ setup(name='astroSynth',
           'scipy>=0.19.0',
           'astropy>=1.3.2',
           'names>=0.3.0',
-          'numba>=0.32.0'
       ],
       packages=['astroSynth', 'astroSynth.Objects'],
       zip_safe=False)

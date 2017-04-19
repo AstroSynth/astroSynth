@@ -8,7 +8,7 @@ import astropy.units as u
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft, fftfreq, fftshift
 from astropy.stats import LombScargle
-import numba
+# import numba
 """
 Description:
     General Helper functions for light curve and fourier analysis
@@ -22,11 +22,11 @@ def compress_to_1(data):
     else:
         return data
 
-@numba.jit(nopython=True)
+# @numba.jit(nopython=True)
 def do_compress(data, old_min, old_max):
-    out = []
-    for i in data:
-        out.append(((i - old_min) / (old_max - old_min)))
+    f = lambda x, y, z:((x - y) / (z - y))
+    out = np.array(data)
+    out = np.apply_along_axis(lambda x: f(x, old_min, old_max), 0, out)
     return out
 
 def Mag_2_Flux(m, F0):
@@ -111,7 +111,7 @@ def NyApprox(serise, start=0):
                     number += 1
         return Ny / float(number)
 
-@numba.jit()
+# @numba.jit()
 def Gen_flsp(time, flux, NyFreq, s):
     if len(time) != 1:
         frequency = np.linspace(0, NyFreq, s)
@@ -179,6 +179,7 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
         pgramgraph = np.sqrt(4 * (pgram / normval))
     else:
         pgramgraph = pgram
+    pgramgraph = pgramgraph/abs(np.max(pgramgraph))
     fgo = f
     return {'Freq': fgo.tolist(), 'Amp': pgramgraph.tolist()}
 
