@@ -167,8 +167,17 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
     # samples = int(NyFreq/res) * 10
     samples = s
     f = np.linspace(res / 10, NyFreq, samples)
+
     xuse = np.asarray(time)
     yuse = np.asarray(flux)
+
+    # import matplotlib.pyplot as plt
+    # plt.plot(xuse, yuse, 'k--o')
+    # plt.title('The Standard Deviation is: {}'.format(np.std(yuse)))
+    # plt.show()
+
+
+
     try:
         pgram = lombscargle(xuse, yuse, f * 2 * np.pi)
     except ZeroDivisionError:
@@ -178,7 +187,7 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
         pgramgraph = np.sqrt(4 * (pgram / normval))
     else:
         pgramgraph = pgram
-    pgramgraph = pgramgraph/abs(np.max(pgramgraph))
+    # pgramgraph = pgramgraph/abs(np.max(pgramgraph))
     fgo = f
     return {'Freq': fgo.tolist(), 'Amp': pgramgraph.tolist()}
 

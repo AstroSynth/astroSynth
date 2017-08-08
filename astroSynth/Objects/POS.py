@@ -371,7 +371,9 @@ class POS():
 			out_tuple = self.targets[target_id].get_ft(n=sub_element, s=s, power_spec=power_spec)
 		if ct1 is True:
 			comp_As = compress_to_1(out_tuple[1])
-		out_tuple = (out_tuple[0], comp_As, out_tuple[2], out_tuple[3])
+		else:
+			comp_As = out_tuple[1]
+		out_tuple = (out_tuple[0], comp_As, out_tuple[2], self.int_name_ref[n])
 		return out_tuple
 
 	def __load_dump__(self, n=0, state_change=True):
