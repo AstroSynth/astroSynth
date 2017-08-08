@@ -79,7 +79,6 @@ class POS():
 			amp_range = self.__list_check__(amp_range)
 			phase_range = self.__list_check__(phase_range)
 			freq_range = self.__list_check__(freq_range)
-<<<<<<< HEAD
 
 			pulsation_amp = np.random.uniform(amp_range[0],
 				                              amp_range[1])
@@ -91,8 +90,6 @@ class POS():
 		    	                                phase_range[1])
 			magnitude = np.random.uniform(self.mag_range[0],
 										  self.mag_range[1])
-=======
->>>>>>> a3cda11ac0bb9986f2862fb3d7a7a722eea103e5
 
 			target_name = names.get_last_name().replace(' ', '-')
 			cont = False
