@@ -155,8 +155,7 @@ class POS():
 				self.classes[i] = 1
 			else:
 				self.classes[i] = 0
-			if self.visits[0] == self.visits[1] == 1:
-				
+
 			self.targets[i].generate(pfrac=self.classes[i], vtime_units=vtime_units,
 				                     btime_units=btime_units, exposure_time=exposure_time,
 				                     visit_range=visit_range, visit_size_range=visit_size_range,
