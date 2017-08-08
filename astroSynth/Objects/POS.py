@@ -386,7 +386,6 @@ class POS():
 			e.args += ('ERROR! Dump index {} out of range for dump of size {}'.format(n, len(self.dumps)))
 			raise
 		dump_path = self.dumps[n]
-		# print('Dump Path is: {}'.format(dump_path))
 		load_targets = os.listdir(dump_path)
 		for target in load_targets:
 			load_path = "{}/{}".format(dump_path, target)
@@ -396,7 +395,6 @@ class POS():
 			else:
 				ttargets[target] = PVS()
 				ttargets[target].load(load_path)
-				# print('ttarget[target] is: {}'.format(ttargets[target]))
 		if state_change is False:
 			return ttargets
 		else:
@@ -552,7 +550,6 @@ class POS():
 				dump_num = int(k)
 				break
 		if dump_num != self.state:
-			print('State Change is: {}'.format(state_change))
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
 				out_obj = self.targets[target_id]

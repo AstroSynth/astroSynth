@@ -105,7 +105,6 @@ def NyApprox(serise, start=0):
         for i, e in enumerate(serise[:10]):
             if i > 1:
                 NyGuess = 1.0 / ((e - serise[(i + start) - 1]) * 2.0)
-                # print "NyGuess is {}".format(NyGuess)
                 if not math.isnan(NyGuess):
                     Ny += NyGuess
                     number += 1

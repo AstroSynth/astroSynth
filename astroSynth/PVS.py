@@ -123,7 +123,7 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.5.0 Development')
+        print('Version 0.5.1 Development')
 
     def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                          freq_range=[1e-7, 1], L_range=[1, 3]):
@@ -366,12 +366,12 @@ class PVS:
                 tlc = Make_Syth_LCs(f=lambda x: self.f[i](x, self.kwargs[i]), pulsator=pulsator,
                                         numpoints=self.depth,
                                         noise_range=self.noise_range, start_time=self.T0,
-                                        end_time=self.T0 + obs_time)
+                                        end_time=self.T0 + obs_time, magnitude=self.mag)
             else:
                 tlc = Make_Syth_LCs(f=self.f, pulsator=pulsator,
                                         numpoints=self.depth,
                                         noise_range=self.noise_range, start_time=self.T0,
-                                        end_time=self.T0 + obs_time)
+                                        end_time=self.T0 + obs_time, magnitude=self.mag)
             list_lcs.append(tlc)
             if getsizeof(list_lcs) > 1e5:
                 self.__dump_data__(list_lcs, last_dump=last_dump, dump_num=dump_num)
@@ -393,7 +393,8 @@ class PVS:
         obs_time = self.depth * exposure_time
         tlc = Make_Syth_LCs(f=lambda x: self.f(x, self.kwargs), pulsator=pulsator,
                             numpoints=self.depth, noise_range=self.noise_range,
-                            start_time=self.T0, end_time=self.T0 + obs_time)
+                            start_time=self.T0, end_time=self.T0 + obs_time,
+                            magnitude=self.mag)
         tlc = np.array(tlc).T
         times, fluxs, integration_time = Make_Visits(tlc, visit_range=visit_range,
                                                      visit_size_range=visit_size_range,
@@ -524,9 +525,9 @@ class PVS:
                 if self.temp_file is True:
                     self.dumps[file_num].seek(0, os.SEEK_END)
                     self.class_dumps[file_num].seek(0, os.SEEK_END)
-                return tlcs[n - base - 1].T[1], tlcs[n - base - 1].T[0], tclass[n - base - 1], n
+                return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n
             else:
-                return self.lcs[n - base - 1].T[1], self.lcs[n - base - 1].T[0], self.classification[n - base - 1], n
+                return self.lcs[n - base].T[1], self.lcs[n - base ].T[0], self.classification[n - base], n
         else:
             return self.lcs[0][0], self.lcs[0][1], self.classification[0], 0
 
