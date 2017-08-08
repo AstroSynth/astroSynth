@@ -6,6 +6,7 @@ import tempfile
 import os
 import shutil
 import time
+# import numba
 import math
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -21,7 +22,7 @@ Description:
 
 class PVS:
     def __init__(self, Number=100, noise_range=[0.1, 1.1], vmod=True,
-                 f=lambda x: np.sin(x), numpoints=100, mag_range=[6, 20],
+                 f=lambda x: np.sin(x), numpoints=100, mag=10,
                  verbose=0, name=None, dpbar=False, lpbar=True, ftemp=False,
                  match_phase=False, single_object=False, T0=0):
         """
@@ -36,8 +37,8 @@ class PVS:
             f: Function to define pulsation, used onley if vmod is true 
                (python function)
             numpoints: The number of points to generate per light curve (int)
-            mag_range: The magnitude range of stars to generate light curves 
-                       from (2-element float list) [Not currently used]
+            mag: The magnitude range stars to generate light curves 
+                       from (float) 
             verbose: the verbosity which with to use when representing the 
                      object (0 - default, 1 - add dump info, 2 - add stored 
                      data)
@@ -56,7 +57,7 @@ class PVS:
         self.size = Number
         self.noise_range = noise_range
         self.depth = numpoints
-        self.mag_range = mag_range
+        self.mag = mag
         self.verbose = verbose
         self.lcs = np.zeros((0, self.depth, 2))
         self.dumps = dict()
@@ -606,6 +607,7 @@ class PVS:
             out.append('Verbose:{}'.format(self.verbose))
             out.append('Noise:{}:{}'.format(self.noise_range[0], self.noise_range[1]))
             out.append('MAmp:{}'.format(self.max_amp))
+            out.append('Magnitude:{}'.format(self.mag))
             out = '\n'.join(out)
             f.write(out)
 
@@ -679,6 +681,8 @@ class PVS:
                     self.noise_range[1] = float(i[2].rstrip())
                 elif i[0] == 'MAmp':
                     self.max_amp = float(i[1].rstrip())
+                elif i[0] == 'Magnitude':
+                    self.mag = float(i[1].rstrip())
         self.generated = True
         self.temp_file = False
 
@@ -687,7 +691,7 @@ class PVS:
         l.append('Name: {n}'.format(n=self.name))
         l.append('Size: {s}'.format(s=self.size))
         l.append('Noise Range: {n}'.format(n=self.noise_range))
-        l.append('Magnitude Range: {m}'.format(m=self.mag_range))
+        l.append('Magnitude: {m}'.format(m=self.mag))
         l.append('Depth: {d}'.format(d=self.depth))
         if self.verbose >= 1:
             if self.generated is True:
@@ -705,7 +709,11 @@ class PVS:
 
     def get_ft(self, n=0, s=300, state_change=False, power_spec=False):
         Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
-        FT = Gen_FT(Time, Normalize(Flux, df=False), NyApprox(Time), s, power_spec=power_spec)
+        try:
+            FT = Gen_FT(Time, Normalize(Flux, df=False), NyApprox(Time), s, power_spec=power_spec)
+        except ValueError as e:
+            e.args += ('Error! Division By Zero Error', self.name)
+            raise
         return FT['Freq'], FT['Amp'], Classification, n
 
     def xget_ft(self, start=0, stop=None, s=300, power_spec=False):

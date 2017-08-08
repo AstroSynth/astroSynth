@@ -6,6 +6,9 @@ import random as r
 from tqdm import tqdm
 import astropy.units as u
 from scipy.interpolate import interp1d
+from scipy.fftpack import fft, fftfreq, fftshift
+from astropy.stats import LombScargle
+# import numba
 """
 Description:
     General Helper functions for light curve and fourier analysis
@@ -14,8 +17,17 @@ Description:
 """
 
 def compress_to_1(data):
-    m = interp1d([min(data), max(data)], [0, 1])
-    return [float(m(x)) for x in data]
+    if max(data) != 1:
+        return do_compress(data, min(data), max(data))
+    else:
+        return data
+
+# @numba.jit(nopython=True)
+def do_compress(data, old_min, old_max):
+    f = lambda x, y, z:((x - y) / (z - y))
+    out = np.array(data)
+    out = np.apply_along_axis(lambda x: f(x, old_min, old_max), 0, out)
+    return out
 
 def Mag_2_Flux(m, F0):
     """
@@ -51,7 +63,7 @@ def initialize_dict(data, values):
             data[e] = 0
     return data
 
-
+# @numba.jit(nopython=True)
 def Normalize(frame, key_col='Flux', df=True):
     """
     Description:
@@ -65,23 +77,13 @@ def Normalize(frame, key_col='Flux', df=True):
     Raises:
         N/A
     """
-    if df is True:
-        mean = frame[key_col].mean()
-        new = []
-        for i, e in enumerate(frame[key_col]):
-            new.append((e / mean) - 1)
-            # new.append(e-mean)
-        new_df = frame.drop(key_col, 1)
-        new_df[key_col] = pd.Series(new, index=new_df.index)
-        return new_df
-    else:
-        mean = np.mean(frame)
-        new = []
-        for i, e in enumerate(frame):
-            new.append((e / mean) - 1)
-        return new
+    mean = np.mean(frame)
+    new = []
+    for i, e in enumerate(frame):
+        new.append((e / mean) - 1)
+    return new
 
-
+# @numba.jit()
 def NyApprox(serise, start=0):
     """
     Decription:
@@ -96,16 +98,36 @@ def NyApprox(serise, start=0):
     """
     Ny = 0
     number = 0
-    for i, e in enumerate(serise[:10]):
-        if i > 1:
-            NyGuess = 1.0 / ((e - serise[(i + start) - 1]) * 2.0)
-            # print "NyGuess is {}".format(NyGuess)
-            if not math.isnan(NyGuess):
-                Ny += NyGuess
-                number += 1
-    return Ny / float(number)
+    if len(serise < 15):
+        T = (serise[-1]-serise[0])/len(serise)
+        return 1.0/(2*T)
+    else:
+        for i, e in enumerate(serise[:10]):
+            if i > 1:
+                NyGuess = 1.0 / ((e - serise[(i + start) - 1]) * 2.0)
+                # print "NyGuess is {}".format(NyGuess)
+                if not math.isnan(NyGuess):
+                    Ny += NyGuess
+                    number += 1
+        return Ny / float(number)
 
+# @numba.jit()
+def Gen_flsp(time, flux, NyFreq, s):
+    if len(time) != 1:
+        frequency = np.linspace(0, NyFreq, s)
+        power = LombScargle(time, flux).power(frequency, method='fast')
+        return{'Freq': frequency, 'Amp': power}
+    else:
+        return{'Freq': np.linspace(0, 1, s), 'Amp': np.ones(s)}
 
+def Gen_fft(time, flux, NyFreq):
+    N = len(flux)
+    yf = fft(flux)
+    xf = np.linspace(0, NyFreq, N//2)
+    yf = 2.0/N * np.abs(yf[0:N//2])
+    return {'Freq': xf, 'Amp': yf}
+
+# @numba.jit()
 def Gen_FT(time, flux, NyFreq, s, power_spec=False):
     """
     Description:
@@ -124,6 +146,8 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
     Raises:
         HARD FAIL - Raised on exessive NaN values in Time Array
     """
+    # return Gen_flsp(time, flux, NyFreq, s)
+    # return Gen_fft(time, flux, NyFreq)
     timeSansNAN = []
     for checksum in time:
         if math.isnan(checksum) is False:
@@ -155,9 +179,9 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
         pgramgraph = np.sqrt(4 * (pgram / normval))
     else:
         pgramgraph = pgram
+    pgramgraph = pgramgraph/abs(np.max(pgramgraph))
     fgo = f
     return {'Freq': fgo.tolist(), 'Amp': pgramgraph.tolist()}
-
 
 def Gen_Spect(data, break_size, samples, time_col='Time', flux_col='Flux',
               spread_UD=10, spred_LR=2):
@@ -208,7 +232,7 @@ def Gen_Spect(data, break_size, samples, time_col='Time', flux_col='Flux',
                      axis=0)
 
 
-def Make_LC(noise_level=0, f=lambda x: np.sin(x), mag=10, numpoints=100,
+def Make_LC(noise_level=0, f=lambda x: np.sin(x), magnitude=10, numpoints=100,
             start_time=0, end_time=0):
     """
     Description:
@@ -232,8 +256,7 @@ def Make_LC(noise_level=0, f=lambda x: np.sin(x), mag=10, numpoints=100,
     if end_time == 0:
         end_time = numpoints
     if noise_level != 0:
-        temp_lc = np.random.normal(Mag_2_Flux(mag, 10),
-                                   noise_level, numpoints)
+        temp_lc = np.random.normal(magnitude, noise_level, numpoints)
         signal = f(key)
         temp_lc += signal
     else:
@@ -326,7 +349,8 @@ def Make_Visits(data, visit_range=[0, 10], visit_size_range=[0.5, 2],
     return [x for x in times if len(x) is not 0], [x for x in values if len(x) is not 0], integration_time
 
 def Make_Syth_LCs(noise_range=[0.1, 1.1], f=lambda x: np.sin(x),
-                  pulsator=True, numpoints=100, start_time=0, end_time=0):
+                  pulsator=True, numpoints=100, start_time=0, end_time=0,
+                  magnitude=10):
     """
     Description:
         More abstract caller for Make_lc() wich allows for non 
@@ -348,11 +372,12 @@ def Make_Syth_LCs(noise_range=[0.1, 1.1], f=lambda x: np.sin(x),
     noise = r.uniform(noise_range[0], noise_range[1])
     if pulsator is True:
         lcs = Make_LC(noise_level=noise, f=f, numpoints=numpoints,
-                      start_time=start_time, end_time=end_time)
+                      start_time=start_time, end_time=end_time,
+                      magnitude=magnitude)
     else:
         lcs = Make_LC(noise_level=noise, f=lambda x: 0,
                       numpoints=numpoints, start_time=start_time,
-                      end_time=end_time)
+                      end_time=end_time, magnitude=magnitude)
     return lcs.as_matrix().tolist()
 
 

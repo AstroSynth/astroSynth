@@ -1,6 +1,7 @@
 import os
 import names
 import shutil
+# import numba
 from ..SDM import *
 import numpy as np
 from tqdm import tqdm
@@ -10,6 +11,7 @@ from astroSynth import SDM
 from astropy import units as u
 from tempfile import TemporaryFile
 from scipy.signal import spectrogram
+from multiprocessing import Pool
 from scipy import misc
 
 class POS():
@@ -33,6 +35,7 @@ class POS():
 		self.save_exists = False
 		self.state = -1
 		self.current = 0
+		self.comp_q_s = 0
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -76,12 +79,7 @@ class POS():
 			amp_range = self.__list_check__(amp_range)
 			phase_range = self.__list_check__(phase_range)
 			freq_range = self.__list_check__(freq_range)
-			# if L_range[0] != L_range[1]:
-			# 	L_range = [L_range[0], L_range[1]]
-			# 	pulsation_modes = np.random.randint(L_range[0],
-			# 		                                L_range[1])
-			# else:
-			# 	pulsation_modes = L_range[0]
+<<<<<<< HEAD
 
 			pulsation_amp = np.random.uniform(amp_range[0],
 				                              amp_range[1])
@@ -91,9 +89,14 @@ class POS():
 
 			pulsation_phase = np.random.uniform(phase_range[0],
 		    	                                phase_range[1])
+			magnitude = np.random.uniform(self.mag_range[0],
+										  self.mag_range[1])
+=======
+>>>>>>> a3cda11ac0bb9986f2862fb3d7a7a722eea103e5
 
 			target_name = names.get_last_name().replace(' ', '-')
 			cont = False
+
 			while cont is False:
 				target_id = "{}-{}".format(target_name, np.random.randint(0, 5001))
 				if target_id not in self.targets:
@@ -101,7 +104,7 @@ class POS():
 
 			self.targets[target_id] = PVS(Number=1, numpoints=self.depth, 
 				                          verbose=self.verbose, noise_range=self.noise_range, 
-				                          mag_range=self.mag_range, name=target_id, 
+				                          mag=magnitude, name=target_id, 
 				                          dpbar=True, ftemp=True, single_object=True)
 			self.targets[target_id].build(amp_range=amp_range,
 										  freq_range=freq_range,
@@ -155,6 +158,8 @@ class POS():
 				self.classes[i] = 1
 			else:
 				self.classes[i] = 0
+			if self.visits[0] == self.visits[1] == 1:
+				
 			self.targets[i].generate(pfrac=self.classes[i], vtime_units=vtime_units,
 				                     btime_units=btime_units, exposure_time=exposure_time,
 				                     visit_range=visit_range, visit_size_range=visit_size_range,
@@ -185,14 +190,14 @@ class POS():
 			self.__save_survey__(path)
 
 	def __get_target_id__(self, n):
-		if isinstance(n, int):
+		if isinstance(n, int) or isinstance(n, np.integer):
 			target_id = self.int_name_ref[n]
 		if isinstance(n, str):
 			target_id = n
 		return target_id
 
 	def __get_target_number__(self, n):
-		if isinstance(n, int):
+		if isinstance(n, int) or isinstance(n, np.integer):
 			target_id = n
 		if isinstance(n, str):
 			target_id = self.name_int_ref[n]
@@ -284,6 +289,9 @@ class POS():
 	def get_lc_sub(self, n=0, sub_element=0):
 		return self.__get_lc__(n=n, full=False, sn=sub_element)
 
+	def __compress_spect__(self, spect):
+		spect = np.array(spect)
+		return spect/abs(np.max(spect))
 
 	def __get_spect__(self, n=0, s=500, dim=50,
 					  power_spec=True, state_change=True):
@@ -291,6 +299,7 @@ class POS():
 		target_num = self.name_int_ref[target_id]
 		LD_stretch = 1
 		dump_num = -1
+		self.count = n
 		for k in self.target_ref:
 			if int(self.target_ref[k][0]) <= target_num <= int(self.target_ref[k][1]):
 				dump_num = int(k)
@@ -303,7 +312,9 @@ class POS():
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
-					Amps.append(compress_to_1(Amp))
+					# Amps.append(compress_to_1(Amp))
+					Amps.append(Amp)
+				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, self.targets[target_id][0][2], target_id)
 			else:
@@ -311,16 +322,19 @@ class POS():
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
-					Amps.append(compress_to_1(Amp))
+					# Amps.append(compress_to_1(Amp))
+					Amps.append(Amp)
+				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id)
 		else:
-
 			UD_stretch = float(len(self.targets[target_id])/dim)
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
 			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
-				Amps.append(compress_to_1(Amp))
+				#Amps.append(compress_to_1(Amp))
+				Amps.append(Amp)
+			# Amps = self.__compress_spect__(Amps)
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id)	
 		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
@@ -376,6 +390,7 @@ class POS():
 			e.args += ('ERROR! Dump index {} out of range for dump of size {}'.format(n, len(self.dumps)))
 			raise
 		dump_path = self.dumps[n]
+		# print('Dump Path is: {}'.format(dump_path))
 		load_targets = os.listdir(dump_path)
 		for target in load_targets:
 			load_path = "{}/{}".format(dump_path, target)
@@ -385,6 +400,7 @@ class POS():
 			else:
 				ttargets[target] = PVS()
 				ttargets[target].load(load_path)
+				# print('ttarget[target] is: {}'.format(ttargets[target]))
 		if state_change is False:
 			return ttargets
 		else:
@@ -486,20 +502,20 @@ class POS():
 		for d, p in zip(dumps, dump_dirs):	
 			self.dumps[d] = p
 		with open('{}/Item_Loc.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc="Item Loc"):
 				data = line.split(':')
 				self.target_ref[int(data[0])] = [int(data[1]), int(data[2])]
 		with open('{}/Item_Ref.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc="Item Ref"):
 				data = line.split(':')
 				self.int_name_ref[int(data[0])] = data[1].rstrip()
 				self.name_int_ref[data[1].rstrip()] = int(data[0])
 		with open('{}/Object_Class.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc="Object Class"):
 				data = line.split(':')
 				self.classes[data[0].rstrip()] = int(data[1])
 		with open('{}/Object_Meta.POS'.format(directory), 'r') as f:
-			for line in f.readlines():
+			for line in tqdm(f.readlines(), desc='Object Meta'):
 				data = line.split(':')
 				if data[0] == 'Size':
 					self.size = int(data[1])
@@ -517,10 +533,8 @@ class POS():
 					self.mag_range = [float(data[1]), float(data[2])]
 		dumps = [int(x) for x in dumps]
 		dumps = sorted(dumps)
-		for dump in dumps:
-			self.__load_dump__(n=dump)
-		
-		self.state = dumps[-1]
+		self.__load_dump__(n=0)
+		self.state = 0
 
 	def names(self):
 		return list(self.targets.keys())
@@ -542,6 +556,7 @@ class POS():
 				dump_num = int(k)
 				break
 		if dump_num != self.state:
+			print('State Change is: {}'.format(state_change))
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
 				out_obj = self.targets[target_id]
@@ -576,7 +591,7 @@ class POS():
 
 	def __batch_get_spect__(self, start=0, mem_size=1e9, step=1,
 							stop=None, s=500, dim=50,
-							power_spec=True):
+							power_spec=True, n_threds=4):
 		if stop is None:
 			stop = self.size
 		mem_use_single = getsizeof(self.__get_spect__(n=0, s=s, dim=dim,
@@ -587,18 +602,28 @@ class POS():
 		else:
 			num *= step
 			num += start
-		out_imigs = list()
-		out_freqs = list()
-		out_class = list()
-		out_tarid = list()
-		for j in range(start, num, step):
-			img, freq, Class, TID = self.__get_spect__(n=j, s=s, dim=dim,
-													   power_spec=power_spec)
-			out_imigs.append(img)
-			out_freqs.append(freq)
-			out_class.append(Class)
-			out_tarid.append(TID)
-		return out_imigs, out_freqs, out_class, out_tarid		
+		p = Pool()
+		data_inputs = range(start, num, step)
+		params = [data_inputs, s, dim, power_spec]
+		pool_params = np.array(self.__gen_pool_params__(params)).T
+		pool_output = p.starmap(self.__spect_thread_retive__, pool_params)
+		pool_output = np.array(pool_output)
+		out_imigs = pool_output[:, 0]
+		out_freqs = pool_output[:, 1]
+		out_class = pool_output[:, 2]
+		out_tarid = pool_output[:, 3]
+		return out_imigs, out_freqs, out_class, out_tarid	
+
+	def __gen_pool_params__(self, parameters):
+		r = parameters[0]
+		s = [parameters[1]] * len(r)
+		dim = [parameters[2]] * len(r)
+		power_spec = [parameters[3]] * len(r)
+		return [r, s, dim, power_spec]
+
+	def __spect_thread_retive__(self, n, s, dim, power_spec):
+		return self.__get_spect__(n=n, s=s,dim=dim,
+								  power_spec=power_spec)
 
 	def batch_get(self, batch_size=10, spect=False, s=None, dim=50, mem_size=1e9,
 				  power_spec=True):
