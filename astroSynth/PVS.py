@@ -123,7 +123,7 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.5.1 Development')
+        print('Version 0.5.2 Development')
 
     def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                          freq_range=[1e-7, 1], L_range=[1, 3]):
@@ -358,10 +358,6 @@ class PVS:
         for i in tqdm(range(self.size), desc='Geneating Light Curves',
                       leave=self.lpbar, disable=self.dpbar):
             pulsator = self.__pick_pulsator__(pfrac=pfrac)
-            if pulsator:
-                self.classification = np.append(self.classification, 1)
-            else:
-                self.classification = np.append(self.classification, 0)
             if self.vmod is True:
                 tlc = Make_Syth_LCs(f=lambda x: self.f[i](x, self.kwargs[i]), pulsator=pulsator,
                                         numpoints=self.depth,
