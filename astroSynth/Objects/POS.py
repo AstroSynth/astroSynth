@@ -290,7 +290,8 @@ class POS():
 		return spect/abs(np.max(spect))
 
 	def __get_spect__(self, n=0, s=500, dim=50,
-					  power_spec=True, state_change=True):
+					  power_spec=True, state_change=True,
+					  Normalize=False):
 		target_id = self.__get_target_id__(n)
 		target_num = self.name_int_ref[target_id]
 		LD_stretch = 1
@@ -334,6 +335,8 @@ class POS():
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id)	
 		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
+		if Normalize:
+			out_img = out_img/out_img.max()
 		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3])
 		return out_tuple
 
@@ -586,7 +589,8 @@ class POS():
 
 	def __batch_get_spect__(self, start=0, mem_size=1e9, step=1,
 							stop=None, s=500, dim=50,
-							power_spec=True, n_threds=4):
+							power_spec=True, n_threds=4,
+							Normalize=False):
 		if stop is None:
 			stop = self.size
 		mem_use_single = getsizeof(self.__get_spect__(n=0, s=s, dim=dim,
@@ -597,9 +601,9 @@ class POS():
 		else:
 			num *= step
 			num += start
-		p = Pool()
+		p = Pool(4)
 		data_inputs = range(start, num, step)
-		params = [data_inputs, s, dim, power_spec]
+		params = [data_inputs, s, dim, power_spec, Normalize]
 		pool_params = np.array(self.__gen_pool_params__(params)).T
 		pool_output = p.starmap(self.__spect_thread_retive__, pool_params)
 		pool_output = np.array(pool_output)
@@ -607,6 +611,7 @@ class POS():
 		out_freqs = pool_output[:, 1]
 		out_class = pool_output[:, 2]
 		out_tarid = pool_output[:, 3]
+		p.close()
 		return out_imigs, out_freqs, out_class, out_tarid	
 
 	def __gen_pool_params__(self, parameters):
@@ -614,14 +619,15 @@ class POS():
 		s = [parameters[1]] * len(r)
 		dim = [parameters[2]] * len(r)
 		power_spec = [parameters[3]] * len(r)
-		return [r, s, dim, power_spec]
+		Normalize = [parameters[4]] * len(r)
+		return [r, s, dim, power_spec, Normalize]
 
-	def __spect_thread_retive__(self, n, s, dim, power_spec):
+	def __spect_thread_retive__(self, n, s, dim, power_spec, Normalize):
 		return self.__get_spect__(n=n, s=s,dim=dim,
-								  power_spec=power_spec)
+								  power_spec=power_spec, Normalize=Normalize)
 
 	def batch_get(self, batch_size=10, spect=False, s=None, dim=50, mem_size=1e9,
-				  power_spec=True):
+				  power_spec=True, NormalizeSpect=False):
 		if isinstance(batch_size, str):
 			try:
 				assert batch_size == 'mem_size'
@@ -657,7 +663,8 @@ class POS():
 			for i in range(int(self.size / batch_size)):
 				yield self.__batch_get_spect__(start = i * batch_size,
 											   stop = (i * batch_size) + batch_size,
-											   s=s, mem_size=mem_size, dim=dim)
+											   s=s, mem_size=mem_size, dim=dim,
+											   Normalize=NormalizeSpect)
 
 	def __repr__(self):
 		out = list()
