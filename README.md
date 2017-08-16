@@ -44,7 +44,7 @@ import astroSynth
 import matplotlib.pyplot as plt
 obs_3 = astroSynth.PVS()
 obs_3.load(directory='TestOne')
-for Time, Flux, Classification in obs_3:
+for Time, Flux, Classification, number, pparams in obs_3:
   plt.plot(Time, Flux, 'o--')
   if Classification == 0:
     plt.title('Non Variable')
@@ -73,3 +73,69 @@ for data in obs_5.batch_get(batch_size=5, ft=True):
     bar = foo(data)
 ```
 Both of these will return 5 elemements at a time (that number can be made n length such that n <= len(obs)) or <'mem_size'> where the batch will expand to fill the avalible memory
+
+### Using POS to generate surveys
+astroSynth has the ability to generate what I call surveys, these are datasets where there are discrete targets, each with multiple light curves (visits or observations) spread over time. The module used to generate surveys is POS. This is build onto of PVS - essentiall each target is a PVS object where one light curve was generated, then parts of that light curve are thrown away, leaving multiple observations behind. 
+
+Use POS to generate data in the following manner
+```python
+import astroSynth
+survey = astroSynth.POS(number = 100, name='survey_1')
+survey.build(amp_range=[0.01, 0.03])
+survey.generate(pfrac=0.5)
+
+survey.save()
+```
+
+Data can then be loaded 
+
+```python
+from astroSynth import POS
+survey = POS()
+survey.load(directory='survey_1')
+```
+
+To access light curves stored inside survey there are multiple approacheds. One can access each individual PVS object and then use the methods from PVS, for example
+
+```python
+from astroSynth import POS
+survey = POS()
+survey.load(directory='survey_1')
+
+time = survey[0][0][0]
+flux = survey[0][0][1]
+classificaion = survey[0][0][2]
+Target_ID = survey[0][0][3]
+pulsation_parameters = survey[0][0][4]
+```
+
+there is also an iterator to get objects, that behaves in a very similar manner
+
+```python
+from astroSynth import POS
+survey = POS()
+survey.load(directory='survey_1')
+
+for target in survey.xget_object():
+    num_visits = len(target)
+    time = target[0][0]
+    flux = target[0][1]
+    classificaion = target[0][2]
+    Target_ID = target[0][3]
+    pulsation_parameters = target[0][4]
+```
+Note both that target in the above example is a PVS object, and that I am only accessing the first visit (thus the 0 subscript), to access other visits
+```python
+from astroSynth import POS
+survey = POS()
+survey.load(directory='survey_1')
+
+for target in survey.xget_object():
+    num_visits = len(target)
+    time = target[visit_num][0]
+    flux = target[visit_num][1]
+    classificaion = target[visit_num][2]
+    Target_ID = target[visit_num][3]
+    pulsation_parameters = target[visit_num][4]
+```
+Place the visit number you are interested in (indexed from 0) in visit_num.
