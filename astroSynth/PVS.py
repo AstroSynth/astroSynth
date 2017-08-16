@@ -503,9 +503,6 @@ class PVS:
                 file_num = -1
             else:
                 for k in self.item_ref:
-                    print('k is {} of type, {}'.format(k, type(k)))
-                    # print('Item ref #{} is: {}'.format(k, self.item_ref[k]))
-                    print("Looking at {} <= {} < {}".format(self.item_ref[k][0], n, self.item_ref[k][1]))
                     if int(self.item_ref[k][0]) <= n < int(self.item_ref[k][1]):
                         file_num = int(k)
                         base = int(self.item_ref[k][0])
@@ -527,12 +524,6 @@ class PVS:
                     self.class_dumps[file_num].seek(0, os.SEEK_END)
                 return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n, self.kwargs[n]
             else:
-                print(n-base)
-                print(self.lcs[n - base].T[1])
-                print(self.lcs[n - base].T[0])
-                print(self.classification[n - base])
-                print(n)
-                print(self.kwargs[n])
                 return self.lcs[n - base].T[1], self.lcs[n - base].T[0], self.classification[n - base], n, self.kwargs[n]
         else:
             return self.lcs[0][0], self.lcs[0][1], self.classification[0], 0, self.kwargs[0]
