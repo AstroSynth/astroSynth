@@ -2,14 +2,11 @@ from .SDM import *
 from tqdm import tqdm
 from sys import getsizeof
 from tempfile import TemporaryFile
-import tempfile
 import os
 import shutil
 import time
-# import numba
+import pickle
 import math
-import matplotlib.pyplot as plt
-import pandas as pd
 
 """
 PVS (Pulsating Variable Star)- Class
@@ -139,7 +136,7 @@ class PVS:
         kwargs['freq'] = np.random.uniform(freq_range[0],
                                            freq_range[1],
                                            kwargs['num'])
-        self.kwargs = kwargs
+        self.kwargs[0] = kwargs
         self.f = lambda x, d: self.__mode_addition__(x, **d)
 
     def __build_func__(self, phase_range=[0, np.pi], amp_range=[0, 1],
@@ -211,8 +208,8 @@ class PVS:
                                                    freq_range[1],
                                                    kwargs['num'])
                 self.kwargs[i] = kwargs
-                prev_phasing = kwargs['phase']
-                prev_frequency = kwargs['freq']
+                # prev_phasing = kwargs['phase']
+                # prev_frequency = kwargs['freq']
                 self.f[i] = lambda x, d: self.__mode_addition__(x, **d)
     @staticmethod
     def __mode_addition__(x, num=1, phase=[0], amp=[1], freq=[1]):
@@ -387,7 +384,7 @@ class PVS:
         else:
             classification = 0
         obs_time = self.depth * exposure_time
-        tlc = Make_Syth_LCs(f=lambda x: self.f(x, self.kwargs), pulsator=pulsator,
+        tlc = Make_Syth_LCs(f=lambda x: self.f(x, self.kwargs[0]), pulsator=pulsator,
                             numpoints=self.depth, noise_range=self.noise_range,
                             start_time=self.T0, end_time=self.T0 + obs_time,
                             magnitude=self.mag)
@@ -501,12 +498,18 @@ class PVS:
         if self.size != 1:
             file_num = -1
             base = 0
-            for k in self.item_ref:
-                # print('Item ref #{} is: {}'.format(k, self.item_ref[k]))
-                if int(self.item_ref[k][0]) <= n < int(self.item_ref[k][1]):
-                    file_num = int(k)
-                    base = int(self.item_ref[k][0])
-                    break
+            if n == self.size - 1:
+                base = int(self.item_ref['-1'][0])
+                file_num = -1
+            else:
+                for k in self.item_ref:
+                    print('k is {} of type, {}'.format(k, type(k)))
+                    # print('Item ref #{} is: {}'.format(k, self.item_ref[k]))
+                    print("Looking at {} <= {} < {}".format(self.item_ref[k][0], n, self.item_ref[k][1]))
+                    if int(self.item_ref[k][0]) <= n < int(self.item_ref[k][1]):
+                        file_num = int(k)
+                        base = int(self.item_ref[k][0])
+                        break
 
             if file_num != self.state:
                 if self.temp_file is True:
@@ -522,11 +525,17 @@ class PVS:
                 if self.temp_file is True:
                     self.dumps[file_num].seek(0, os.SEEK_END)
                     self.class_dumps[file_num].seek(0, os.SEEK_END)
-                return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n
+                return tlcs[n - base].T[1], tlcs[n - base].T[0], tclass[n - base], n, self.kwargs[n]
             else:
-                return self.lcs[n - base].T[1], self.lcs[n - base].T[0], self.classification[n - base], n
+                print(n-base)
+                print(self.lcs[n - base].T[1])
+                print(self.lcs[n - base].T[0])
+                print(self.classification[n - base])
+                print(n)
+                print(self.kwargs[n])
+                return self.lcs[n - base].T[1], self.lcs[n - base].T[0], self.classification[n - base], n, self.kwargs[n]
         else:
-            return self.lcs[0][0], self.lcs[0][1], self.classification[0], 0
+            return self.lcs[0][0], self.lcs[0][1], self.classification[0], 0, self.kwargs[0]
 
     def xget_lc(self, stop=None, start=0):
         if stop is None:
@@ -584,6 +593,17 @@ class PVS:
         self.dumps_are_temp = False
         return path
 
+    @staticmethod
+    def __pickle_object__(obj, filename):
+        with open(filename, 'wb') as output:
+            pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
+
+    @staticmethod
+    def __open_pickle_jar__(filename):
+        with open(filename, 'rb') as input:
+            pobject = pickle.load(input)
+        return pobject
+
     def _save_model_(self, path = None):
         try:
             assert path is not None
@@ -608,6 +628,8 @@ class PVS:
             out.append('Magnitude:{}'.format(self.mag))
             out = '\n'.join(out)
             f.write(out)
+
+        self.__pickle_object__(self.kwargs, '{}/pparams.pkl'.format(path))
 
     def load(self, directory='.', start=-1):
         files = os.listdir(directory)
@@ -681,6 +703,19 @@ class PVS:
                     self.max_amp = float(i[1].rstrip())
                 elif i[0] == 'Magnitude':
                     self.mag = float(i[1].rstrip())
+        go = False
+        try:
+            assert "pparams.pkl" in os.listdir(directory)
+            go = True
+        except AssertionError as e:
+            print('Warning!, unable to locate pulsation parameters file',
+                  'pparams.pkl missing in {}'.format(directory),
+                  'pulsation parameters will be intialized to empty parameter matrix')
+            self.kwargs = [{'num': None, 'amp':[None], 'freq':[None], 'phase':[None]}] * self.size
+
+        if go is True:
+            self.kwargs = self.__open_pickle_jar__("{}/pparams.pkl".format(directory))
+
         self.generated = True
         self.temp_file = False
 
@@ -712,7 +747,7 @@ class PVS:
         except ValueError as e:
             e.args += ('Error! Division By Zero Error', self.name)
             raise
-        return FT['Freq'], FT['Amp'], Classification, n
+        return FT['Freq'], FT['Amp'], Classification, n, self.kwargs[n]
 
     def xget_ft(self, start=0, stop=None, s=300, power_spec=False):
         if stop is None:
@@ -774,13 +809,15 @@ class PVS:
         out_amp = list()
         out_class = list()
         out_number = list()
+        out_pparams = list()
         for i in range(start, num, step):
-            Freq, Amp, Class, Number = self.get_ft(n=i, s=s, state_change=True)
+            Freq, Amp, Class, Number, pparams = self.get_ft(n=i, s=s, state_change=True)
             out_freq.append(Freq)
             out_amp.append(Amp)
             out_class.append(Class)
             out_number.append(Number)
-        return out_freq, out_amp, out_class, out_number
+            out_pparams.append(pparams)
+        return out_freq, out_amp, out_class, out_number, out_pparams
 
     def __batch_get_lc__(self, start=0, mem_size=1e9, step=1,
                          stop=None):
@@ -797,14 +834,16 @@ class PVS:
         out_flux = list()
         out_class = list()
         out_number = list()
+        out_pparams = list()
         for j in range(start, num , step):
-            Time, Flux, Class, Number = self.__get_lc__(n=j, state_change=True)
+            Time, Flux, Class, Number, pparams = self.__get_lc__(n=j, state_change=True)
             out_time.append(Time)
             out_flux.append(Flux)
             out_class.append(Class)
             out_number.append(Number)
+            out_pparams.append(pparams)
         j = 0
-        return out_time, out_flux, out_class, out_number
+        return out_time, out_flux, out_class, out_number, out_pparams
 
     def __getitem__(self, key):
         if isinstance(key, int):

@@ -16,7 +16,7 @@ from scipy import misc
 
 class POS():
 	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.05, 0.1],
-		         number=1000, numpoints=300, verbose=0, name=None):
+		         number=100, numpoints=100000, verbose=0, name=None):
 		if name is None:
 			name = prefix
 		self.name = name
@@ -471,7 +471,7 @@ class POS():
 			out = '\n'.join(out)
 			f.write(out)
 
-	def load(self, directory='.', start=-1):
+	def load(self, directory='.', start=-1, pbar=True):
 		files = os.listdir(directory)
 		try:
 			assert 'Item_Loc.POS' in files
@@ -497,24 +497,25 @@ class POS():
 			directory = directory[:-1]
 		dumps = [x.split('_')[1] for x in files if not '.POS' in x and 'Group' in x]
 		dumps = [int(x) for x in dumps]
+
 		dump_dirs = ["{}/Group_{}".format(directory, x) for x in dumps]
 		for d, p in zip(dumps, dump_dirs):	
 			self.dumps[d] = p
 		with open('{}/Item_Loc.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc="Item Loc"):
+			for line in tqdm(f.readlines(), desc="Item Loc", disable=not pbar):
 				data = line.split(':')
 				self.target_ref[int(data[0])] = [int(data[1]), int(data[2])]
 		with open('{}/Item_Ref.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc="Item Ref"):
+			for line in tqdm(f.readlines(), desc="Item Ref", disable=not pbar):
 				data = line.split(':')
 				self.int_name_ref[int(data[0])] = data[1].rstrip()
 				self.name_int_ref[data[1].rstrip()] = int(data[0])
 		with open('{}/Object_Class.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc="Object Class"):
+			for line in tqdm(f.readlines(), desc="Object Class", disable=not pbar):
 				data = line.split(':')
 				self.classes[data[0].rstrip()] = int(data[1])
 		with open('{}/Object_Meta.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc='Object Meta'):
+			for line in tqdm(f.readlines(), desc='Object Meta', disable=not pbar):
 				data = line.split(':')
 				if data[0] == 'Size':
 					self.size = int(data[1])
@@ -532,7 +533,7 @@ class POS():
 					self.mag_range = [float(data[1]), float(data[2])]
 		dumps = [int(x) for x in dumps]
 		dumps = sorted(dumps)
-		self.__load_dump__(n=0)
+		self.__load_dump__(n=-1)
 		self.state = 0
 
 	def names(self):
