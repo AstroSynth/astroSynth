@@ -741,13 +741,13 @@ class PVS:
         return out
 
     def get_ft(self, n=0, s=300, state_change=False, power_spec=False):
-        Time, Flux, Classification, o = self.__get_lc__(n, state_change=state_change)
+        Time, Flux, Classification, o, pp = self.__get_lc__(n, state_change=state_change)
         try:
             FT = Gen_FT(Time, Normalize(Flux, df=False), NyApprox(Time), s, power_spec=power_spec)
         except ValueError as e:
             e.args += ('Error! Division By Zero Error', self.name)
             raise
-        return FT['Freq'], FT['Amp'], Classification, n, self.kwargs[n]
+        return FT['Freq'], FT['Amp'], Classification, n, pp
 
     def xget_ft(self, start=0, stop=None, s=300, power_spec=False):
         if stop is None:
