@@ -402,8 +402,14 @@ class PVS:
         else:
             self.lcs = np.array([fluxs, times]).T
         self.size = len(self.lcs)
+        kwargs = self.kwargs
+        for i in range(self.size):
+            print('Building kwargs up to: {}'.format(i))
+            self.kwargs[i] = kwargs
         for index, _ in enumerate(self.lcs):
             self.classification = np.append(self.classification, classification)
+
+        self.item_ref[-1] = [0, len(self.lcs)]
 
     def generate(self, pfrac=0.1, vtime_units=u.hour,
                  btime_units=u.day, exposure_time=30,

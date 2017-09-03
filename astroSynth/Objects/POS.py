@@ -222,7 +222,7 @@ class POS():
 				if full is True:
 					times = list()
 					fluxs = list()
-					for Time, Flux, classes, _ in pull_from[target_id].xget_lc(start=start,
+					for Time, Flux, classes, _, _ in pull_from[target_id].xget_lc(start=start,
 						                                                       stop=stop):
 						times.extend(Time)
 						fluxs.extend(Flux)
@@ -242,7 +242,7 @@ class POS():
 				if full is True:
 					times = list()
 					fluxs = list()
-					for Time, Flux, classes, _ in self.targets[target_id].xget_lc(start=start,
+					for Time, Flux, classes, _, _ in self.targets[target_id].xget_lc(start=start,
 						                                                          stop=stop):
 						times.extend(Time)
 						fluxs.extend(Flux)
@@ -257,7 +257,7 @@ class POS():
 			if full is True:
 				times = list()
 				fluxs = list()
-				for Time, Flux, classes, _ in self.targets[target_id].xget_lc(start=start,
+				for Time, Flux, classes, _, _ in self.targets[target_id].xget_lc(start=start,
 					                                                          stop=stop):
 					times.extend(Time)
 					fluxs.extend(Flux)
