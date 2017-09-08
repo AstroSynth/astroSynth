@@ -120,7 +120,7 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.5.3 Development')
+        print('Version 0.5.3.7 Development')
 
     def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                          freq_range=[1e-7, 1], L_range=[1, 3]):
@@ -404,7 +404,6 @@ class PVS:
         self.size = len(self.lcs)
         kwargs = self.kwargs
         for i in range(self.size):
-            print('Building kwargs up to: {}'.format(i))
             self.kwargs[i] = kwargs
         for index, _ in enumerate(self.lcs):
             self.classification = np.append(self.classification, classification)

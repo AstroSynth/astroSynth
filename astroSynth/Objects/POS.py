@@ -308,36 +308,36 @@ class POS():
 				UD_stretch = float(len(self.targets[target_id])/dim)
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
-				for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
+				for Freq, Amp, Class, Index, kwarg in self.targets[target_id].xget_ft(power_spec=True):
 					# Amps.append(compress_to_1(Amp))
 					Amps.append(Amp)
 				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
-					         Freq, self.targets[target_id][0][2], target_id)
+					         Freq, self.targets[target_id][0][2], target_id, kwarg)
 			else:
 				UD_stretch = float(len(pull_from[target_id])/dim)
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
-				for Freq, Amp, Class, Index in pull_from[target_id].xget_ft(power_spec=True):
+				for Freq, Amp, Class, Index, kwarg in pull_from[target_id].xget_ft(power_spec=True):
 					# Amps.append(compress_to_1(Amp))
 					Amps.append(Amp)
 				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
-					         Freq, pull_from[target_id][0][2], target_id)
+					         Freq, pull_from[target_id][0][2], target_id, kwarg)
 		else:
 			UD_stretch = float(len(self.targets[target_id])/dim)
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
-			for Freq, Amp, Class, Index in self.targets[target_id].xget_ft(power_spec=True):
+			for Freq, Amp, Class, Index, kwarg in self.targets[target_id].xget_ft(power_spec=True):
 				#Amps.append(compress_to_1(Amp))
 				Amps.append(Amp)
 			# Amps = self.__compress_spect__(Amps)
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
-				         Freq, self.targets[target_id][0][2], target_id)	
+				         Freq, self.targets[target_id][0][2], target_id, kwarg)	
 		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
 		if Normalize:
 			out_img = out_img/out_img.max()
-		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3])
+		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3], out_tuple[4])
 		return out_tuple
 
 	def get_spect(self, n=0, s=500, dim=50, power_spec=True, 
@@ -594,7 +594,8 @@ class POS():
 							Normalize=False):
 		if stop is None:
 			stop = self.size
-		mem_use_single = getsizeof(self.__get_spect__(n=0, s=s, dim=dim,
+		use_target = self.targets[list(self.targets)[0]].name
+		mem_use_single = getsizeof(self.__get_spect__(n=use_target, s=s, dim=dim,
 													  power_spec=power_spec))
 		num = int(mem_size / mem_use_single)
 		if stop < start + (num * step):
@@ -612,8 +613,9 @@ class POS():
 		out_freqs = pool_output[:, 1]
 		out_class = pool_output[:, 2]
 		out_tarid = pool_output[:, 3]
+		out_kwarg = pool_output[:, 4]
 		p.close()
-		return out_imigs, out_freqs, out_class, out_tarid	
+		return out_imigs, out_freqs, out_class, out_tarid, out_kwarg	
 
 	def __gen_pool_params__(self, parameters):
 		r = parameters[0]
