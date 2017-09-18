@@ -16,7 +16,7 @@ from scipy import misc
 
 class POS():
 	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.05, 0.1],
-		         number=100, numpoints=100000, verbose=0, name=None):
+		         number=100, numpoints=100000, verbose=0, name=None, DEBUG=False):
 		if name is None:
 			name = prefix
 		self.name = name
@@ -36,6 +36,8 @@ class POS():
 		self.state = -1
 		self.current = 0
 		self.comp_q_s = 0
+		self.DEBUG = DEBUG
+		self.logfile = 'POS_{}.log'.format(self.name)
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -289,11 +291,25 @@ class POS():
 		spect = np.array(spect)
 		return spect/abs(np.max(spect))
 
+	def __Debug_log__(self, i, arg='NPA', udfile=True):
+		if self.DEBUG:
+			if udfile:
+				with open(self.logfile, 'a') as f:
+					if i == 0:
+						f.write('------\n')
+					else:
+						f.write('[DEBUG:{}]: {} \n'.format(i, arg))
+			else:
+				print('DEBUG: {}-- {}'.format(i, arg))
+
 	def __get_spect__(self, n=0, s=500, dim=50,
 					  power_spec=True, state_change=True,
 					  Normalize=False):
+		self.__Debug_log__(0)
+		self.__Debug_log__(1, arg='Started Target Retreval')
 		target_id = self.__get_target_id__(n)
 		target_num = self.name_int_ref[target_id]
+		self.__Debug_log__(2, arg='Target id {} and Target Num {}'.format(target_id, target_num))
 		LD_stretch = 1
 		dump_num = -1
 		self.count = n
@@ -302,6 +318,8 @@ class POS():
 				dump_num = int(k)
 				break
 		Amps = list()
+		self.__Debug_log__(3, arg='Current Object State is: {}'.format(self.state))
+		self.__Debug_log__(4, arg='Target dump num: {}'.format(dump_num))
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
@@ -325,6 +343,8 @@ class POS():
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id, kwarg)
 		else:
+			self.__Debug_log__(5, arg='target length is : {}'.format(len(self.targets)))
+			self.__Debug_log__(6, arg='First target is: {}'.format(list(self.targets.keys())[0]))
 			UD_stretch = float(len(self.targets[target_id])/dim)
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
@@ -336,14 +356,16 @@ class POS():
 				         Freq, self.targets[target_id][0][2], target_id, kwarg)	
 		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
 		if Normalize:
-			out_img = out_img/out_img.max()
+			# out_img = out_img/out_img.max()
+			out_img = out_img/(np.mean(out_img) - 1)
 		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3], out_tuple[4])
+		self.__Debug_log__('Fstate', arg='Final State is: {}'.format(self.state))
 		return out_tuple
 
 	def get_spect(self, n=0, s=500, dim=50, power_spec=True, 
-				  state_change=True):
+				  state_change=True, Normalize=False):
 		return self.__get_spect__(n=n, s=s, dim=dim, power_spec=power_spec,
-								  state_change=state_change)
+								  state_change=state_change, Normalize=Normalize)
 
 	def xget_spect(self, start=0, stop=None, s=500, dim=50,
 			       power_spec=True, state_change=True):
@@ -521,6 +543,7 @@ class POS():
 					self.size = int(data[1])
 				elif data[0] == 'Name':
 					self.name = data[1]
+					self.logfile = 'POS_{}.log'.format(self.name)
 				elif data[0] == 'Prefix':
 					self.prefix = data[1]
 				elif data[0] == 'Depth':
@@ -534,7 +557,7 @@ class POS():
 		dumps = [int(x) for x in dumps]
 		dumps = sorted(dumps)
 		self.__load_dump__(n=-1)
-		self.state = 0
+		self.state = -1
 
 	def names(self):
 		return list(self.targets.keys())
