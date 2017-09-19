@@ -343,6 +343,7 @@ class POS():
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id, kwarg)
 		else:
+			self.__Debug_log__('Break', arg='In Else', udfile=False)
 			self.__Debug_log__(5, arg='target length is : {}'.format(len(self.targets)))
 			self.__Debug_log__(6, arg='First target is: {}'.format(list(self.targets.keys())[0]))
 			UD_stretch = float(len(self.targets[target_id])/dim)
@@ -351,11 +352,13 @@ class POS():
 			for Freq, Amp, Class, Index, kwarg in self.targets[target_id].xget_ft(power_spec=True):
 				#Amps.append(compress_to_1(Amp))
 				Amps.append(Amp)
+				self.__Debug_log__('{}:{}'.format(7, Index), arg='Max amp is: {}'.format(max(Amp)))
 			# Amps = self.__compress_spect__(Amps)
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id, kwarg)	
-		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
-		if Normalize:
+			self.__Debug_log__('8:0 Amp Check', arg='Max amplitues of 0th Amp is: {}'.format(max(out_tuple[0][0])))
+		out_img = out_tuple[0]#  misc.imresize(out_tuple[0], (dim, s), interp='cubic')
+		if Normalize is True:
 			# out_img = out_img/out_img.max()
 			out_img = out_img/(np.mean(out_img) - 1)
 		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3], out_tuple[4])
@@ -651,6 +654,15 @@ class POS():
 	def __spect_thread_retive__(self, n, s, dim, power_spec, Normalize):
 		return self.__get_spect__(n=n, s=s,dim=dim,
 								  power_spec=power_spec, Normalize=Normalize)
+
+	def get_spects(self, start=0, mem_size=1e9, step=1,
+				   stop=None, s=500, dim=50,
+				   power_spec=True, n_threds=4,
+				   Normalize=False):
+		return self.__batch_get_spect__(start=start, mem_size=mem_size,
+							            step=step, stop=stop, s=s, dim=dim,
+							            power_spec=power_spec,
+							            n_threds=n_threds, Normalize=Normalize)
 
 	def batch_get(self, batch_size=10, spect=False, s=None, dim=50, mem_size=1e9,
 				  power_spec=True, NormalizeSpect=False):
