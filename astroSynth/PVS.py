@@ -120,7 +120,7 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.5.3.9 Development')
+        print('Version 0.5.4.1 Development')
 
     def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                          freq_range=[1e-7, 1], L_range=[1, 3]):
@@ -504,7 +504,7 @@ class PVS:
             file_num = -1
             base = 0
             if n == self.size - 1:
-                base = int(self.item_ref['-1'][0])
+                base = int(self.item_ref[-1][0])
                 file_num = -1
             else:
                 for k in self.item_ref:
@@ -680,7 +680,7 @@ class PVS:
         with open('{}/item_loc_meta.PVS'.format(directory), 'r') as f:
             lines = [x.split(':') for x in f.readlines()]
             for i in lines:
-                self.item_ref[i[0]] = [i[1], i[2]]
+                self.item_ref[int(i[0])] = [i[1], i[2]]
         with open('{}/object_meta.PVS'.format(directory), 'r') as f:
             lines = [x.split(':') for x in f.readlines()]
             for i in lines:

@@ -13,6 +13,7 @@ from tempfile import TemporaryFile
 from scipy.signal import spectrogram
 from multiprocessing import Pool
 from scipy import misc
+from contextlib import closing
 
 class POS():
 	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.05, 0.1],
@@ -354,10 +355,15 @@ class POS():
 				Amps.append(Amp)
 				self.__Debug_log__('{}:{}'.format(7, Index), arg='Max amp is: {}'.format(max(Amp)))
 			# Amps = self.__compress_spect__(Amps)
+			self.__Debug_log__(10, arg='UD: {}, LD: {}'.format(UD_stretch, LD_stretch))
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id, kwarg)	
 			self.__Debug_log__('8:0 Amp Check', arg='Max amplitues of 0th Amp is: {}'.format(max(out_tuple[0][0])))
-		out_img = out_tuple[0]#  misc.imresize(out_tuple[0], (dim, s), interp='cubic')
+		orig_max = out_tuple[0].max()
+		orig_min = out_tuple[0].min()
+		orig_range = orig_max - orig_min
+		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
+		out_img = ((out_img * orig_range)/255.0)+orig_min
 		if Normalize is True:
 			# out_img = out_img/out_img.max()
 			out_img = out_img/(np.mean(out_img) - 1)
@@ -401,7 +407,7 @@ class POS():
 			comp_As = compress_to_1(out_tuple[1])
 		else:
 			comp_As = out_tuple[1]
-		out_tuple = (out_tuple[0], comp_As, out_tuple[2], self.int_name_ref[n])
+		out_tuple = (out_tuple[0], comp_As, out_tuple[2])#, self.int_name_ref[n])
 		return out_tuple
 
 	def __load_dump__(self, n=0, state_change=True):
@@ -629,18 +635,17 @@ class POS():
 		else:
 			num *= step
 			num += start
-		p = Pool(4)
-		data_inputs = range(start, num, step)
-		params = [data_inputs, s, dim, power_spec, Normalize]
-		pool_params = np.array(self.__gen_pool_params__(params)).T
-		pool_output = p.starmap(self.__spect_thread_retive__, pool_params)
-		pool_output = np.array(pool_output)
-		out_imigs = pool_output[:, 0]
-		out_freqs = pool_output[:, 1]
-		out_class = pool_output[:, 2]
-		out_tarid = pool_output[:, 3]
-		out_kwarg = pool_output[:, 4]
-		p.close()
+		with closing(Pool(4, maxtasksperchild=1000)) as p:
+			data_inputs = range(start, num, step)
+			params = [data_inputs, s, dim, power_spec, Normalize]
+			pool_params = np.array(self.__gen_pool_params__(params)).T
+			pool_output = p.starmap(self.__spect_thread_retive__, pool_params)
+			pool_output = np.array(pool_output)
+			out_imigs = pool_output[:, 0]
+			out_freqs = pool_output[:, 1]
+			out_class = pool_output[:, 2]
+			out_tarid = pool_output[:, 3]
+			out_kwarg = pool_output[:, 4]
 		return out_imigs, out_freqs, out_class, out_tarid, out_kwarg	
 
 	def __gen_pool_params__(self, parameters):
@@ -706,11 +711,11 @@ class POS():
 
 	def __repr__(self):
 		out = list()
-		out.append(f"Survey Name: {self.prefix}")
-		out.append(f"Survey Size: {self.size}")
-		out.append(f"Survey Object Name: {self.name}")
+		out.append("Survey Name: {prefix}".format(prefix=self.prefix))
+		out.append("Survey Size: {size}".format(size=self.size))
+		out.append("Survey Object Name: {name}".format(self.name))
 		if self.verbose >= 1:
-			out.append(f'Noise Range: {self.noise_range[0]}->{self.noise_range[1]}')
+			out.append('Noise Range: {}->{}'.format(self.noise_range[0], self.noise_range[1]))
 
 		return '\n'.join(out)
 
