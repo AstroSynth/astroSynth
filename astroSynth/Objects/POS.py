@@ -713,7 +713,7 @@ class POS():
 		out = list()
 		out.append("Survey Name: {prefix}".format(prefix=self.prefix))
 		out.append("Survey Size: {size}".format(size=self.size))
-		out.append("Survey Object Name: {name}".format(self.name))
+		out.append("Survey Object Name: {name}".format(name=self.name))
 		if self.verbose >= 1:
 			out.append('Noise Range: {}->{}'.format(self.noise_range[0], self.noise_range[1]))
 

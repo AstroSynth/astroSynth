@@ -120,7 +120,7 @@ class PVS:
         Returns:
             N/A
         """
-        print('Version 0.5.4.1 Development')
+        print('Version 0.5.4.3 Development')
 
     def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                          freq_range=[1e-7, 1], L_range=[1, 3]):
