@@ -14,6 +14,7 @@ from scipy.signal import spectrogram
 from multiprocessing import Pool
 from scipy import misc
 from contextlib import closing
+from warnings import warn
 
 class POS():
 	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.05, 0.1],
@@ -39,6 +40,7 @@ class POS():
 		self.comp_q_s = 0
 		self.DEBUG = DEBUG
 		self.logfile = 'POS_{}.log'.format(self.name)
+		self.absolute_ref = dict()
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -163,6 +165,8 @@ class POS():
 				                     btime_units=btime_units, exposure_time=exposure_time,
 				                     visit_range=visit_range, visit_size_range=visit_size_range,
 				                     break_size_range=break_size_range, etime_units=etime_units)
+			for k in range(len(self.targets[i])):
+				self.absolute_ref[j+k] = [j, k]
 			if j-lastdump >= target_in_mem:
 				path_a = "{}/.{}_temp".format(os.getcwd(), self.prefix)
 				if self.save_exists is False:
@@ -272,10 +276,27 @@ class POS():
 		return times, fluxs, c, target_id
 
 	def get_lc(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
-		return self.__get_lc__(n=n, full=full, sn=sn, start=start, stop=stop, state_change=state_change)
+		return self.__get_lc__(n=n, full=full, sn=sn, start=start, stop=stop,
+			                   state_change=state_change)
 
 	def get_full_lc(self, n=0, state_change=False):
 		return self.__get_lc__(n=n, full=True, state_change=state_change)
+
+	def PVS_get_lc(self, n=0, state_change=False):
+		print(list(self.absolute_ref.keys())[0:10])
+		refernce = self.absolute_ref[n]
+		return self.get_lc_sub(n=refernce[0], sub_element=refernce[1], 
+			                   state_change=state_change)
+
+	def PVS_xget_lc(self, start=0, stop=None, state_change=True):
+		if stop is None:
+			stop = self.size
+		if stop > self.size:
+			raise IndexError('Error! Stop Value cannot excede Size of PVS Object')
+		for i in range(start, stop):
+			refernce = self.absolute_ref[i]
+			yield self.get_lc_sub(n=refernce[0], sub_element=refernce[1], 
+			                      state_change=state_change)
 
 	def xget_lc(self, start=0, stop=None, state_change=True):
 		if stop is None:
@@ -285,8 +306,9 @@ class POS():
 		for i in range(start, stop):
 			yield self.__get_lc__(n=i, state_change=state_change)
 
-	def get_lc_sub(self, n=0, sub_element=0):
-		return self.__get_lc__(n=n, full=False, sn=sub_element)
+	def get_lc_sub(self, n=0, sub_element=0, state_change=False):
+		return self.__get_lc__(n=n, full=False, sn=sub_element,
+			                   state_change=False)
 
 	def __compress_spect__(self, spect):
 		spect = np.array(spect)
@@ -386,7 +408,25 @@ class POS():
 			yield self.__get_spect__(n=i, s=s, dim=dim, power_spec=False,
 									 state_change=state_change)
 
-	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False, power_spec=True, ct1=True):
+	def PVS_get_ft(self, n=0, s=500, state_change=False, power_spec=True, ct1=False):
+		refernce = self.absolute_ref[n]
+		return self.get_ft_sub(n=refernce[0], sub_element=refernce[1],
+							   state_change=state_change, power_spec=power_spec,
+							   ct1=ct1)
+
+	def PVS_xget_ft(self, start=0, stop=None, s=500, state_change=True,
+				power_spec=False, ct1=False):
+		if stop is None:
+			stop = self.size
+		if stop > self.size:
+			raise IndexError('Error! Stop Value is Larger than size of PVS Object')
+		for i in range(start, stop):
+			refernce = self.absolute_ref[i]
+			yield self.get_ft_sub(n=refernce[0], sub_element=refernce[1],
+							   state_change=state_change, power_spec=power_spec,
+							   ct1=ct1)
+
+	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False, power_spec=True, ct1=False):
 		target_id = self.__get_target_id__(n)
 		target_num = self.__get_target_number__(n)
 
@@ -407,7 +447,7 @@ class POS():
 			comp_As = compress_to_1(out_tuple[1])
 		else:
 			comp_As = out_tuple[1]
-		out_tuple = (out_tuple[0], comp_As, out_tuple[2])#, self.int_name_ref[n])
+		out_tuple = (out_tuple[0], comp_As, out_tuple[2], self.int_name_ref[n])
 		return out_tuple
 
 	def __load_dump__(self, n=0, state_change=True):
@@ -488,6 +528,13 @@ class POS():
 					                         self.target_ref[dump][1]))
 			out = '\n'.join(out)
 			f.write(out)
+		with open('{}/Absolute_Ref.POS'.format(path), 'w') as f:
+			out = list()
+			for key in self.absolute_ref:
+				out.append("{}:{}:{}".format(key, self.absolute_ref[key][0],
+										     self.absolute_ref[key][1]))
+			out = '\n'.join(out)
+			f.write(out)
 		with open("{}/Object_Meta.POS".format(path), 'w') as f:
 			out = list()
 			out.append('Size:{}'.format(self.size))
@@ -504,6 +551,7 @@ class POS():
 
 	def load(self, directory='.', start=-1, pbar=True):
 		files = os.listdir(directory)
+		NTG = False
 		try:
 			assert 'Item_Loc.POS' in files
 		except AssertionError as e:
@@ -524,6 +572,11 @@ class POS():
 		except AssertionError as e:
 			e.args += ('Error! Corrupted POS object', 'Cannot find "Object_Meta.POS"')
 			raise
+		if 'Absolute_Ref.POS' not in files:
+			warn('Unable To Locate Absolute_Ref.POS, '\
+				 'Will Attempt to generate and save to'\
+				 'directory')
+			NTG = True
 		if directory[-1] == '/':
 			directory = directory[:-1]
 		dumps = [x.split('_')[1] for x in files if not '.POS' in x and 'Group' in x]
@@ -545,6 +598,7 @@ class POS():
 			for line in tqdm(f.readlines(), desc="Object Class", disable=not pbar):
 				data = line.split(':')
 				self.classes[data[0].rstrip()] = int(data[1])
+
 		with open('{}/Object_Meta.POS'.format(directory), 'r') as f:
 			for line in tqdm(f.readlines(), desc='Object Meta', disable=not pbar):
 				data = line.split(':')
@@ -567,6 +621,37 @@ class POS():
 		dumps = sorted(dumps)
 		self.__load_dump__(n=-1)
 		self.state = -1
+
+		if NTG is True:
+			self.absolute_ref = self.__gen_absolute_ref__(save=True, directory=directory, pbar=pbar)
+		else:
+			with open('{}/Absolute_Ref.POS'.format(directory), 'r') as f:
+				for line in tqdm(f.readlines(), desc="Absolute Path", disable=not pbar):
+					data = line.split(':')
+					self.absolute_ref[int(data[0].rstrip())] = [int(data[1].rstrip()),
+															    int(data[2].rstrip())]
+
+	def __gen_absolute_ref__(self, save=False, directory=None, pbar=True):
+		iaf = dict()
+		c = 0
+		for n, target in tqdm(enumerate(self.xget_object()), 
+							  desc='Generating Absolute Refernce',
+							  disable=not pbar):
+			# print(n)
+			for i in range(len(target)):
+				iaf[c] = [n, i]
+				c += 1
+		# print('SIZE IS: {}MB'.format(getsizeof(iaf) / 1e6))
+		if save is True:
+			assert directory is not None
+
+			with open('{}/Absolute_Ref.POS'.format(directory), 'w') as f:
+				out = list()
+				for key in iaf:
+					out.append("{}:{}:{}".format(key, iaf[key][0], iaf[key][1]))
+				out = '\n'.join(out)
+				f.write(out)
+		return iaf
 
 	def names(self):
 		return list(self.targets.keys())
