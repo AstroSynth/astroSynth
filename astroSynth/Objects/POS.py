@@ -640,11 +640,9 @@ class POS():
 		for n, target in tqdm(enumerate(self.xget_object()), 
 							  desc='Generating Absolute Refernce',
 							  disable=not pbar):
-			# print(n)
 			for i in range(len(target)):
 				iaf[c] = [n, i]
 				c += 1
-		# print('SIZE IS: {}MB'.format(getsizeof(iaf) / 1e6))
 		if save is True:
 			assert directory is not None
 
