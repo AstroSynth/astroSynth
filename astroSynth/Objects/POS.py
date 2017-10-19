@@ -155,6 +155,7 @@ class POS():
 		dumpnum = 0
 		lastdump = 0
 		refs = list()
+		last = 0
 		for j, i in tqdm(enumerate(self.targets), desc='Geneating Survey Data', total=self.size):
 			refs.append(i)
 			rand_pick = np.random.uniform(0, 10)
@@ -168,7 +169,8 @@ class POS():
 				                     visit_range=visit_range, visit_size_range=visit_size_range,
 				                     break_size_range=break_size_range, etime_units=etime_units)
 			for k in range(len(self.targets[i])):
-				self.absolute_ref[j+k] = [j, k]
+				self.absolute_ref[last+k] = [j, k]
+			last += len(self.targets[i]) - 1
 			if j-lastdump >= target_in_mem:
 				path_a = "{}/.{}_temp".format(os.getcwd(), self.prefix)
 				if self.save_exists is False:
@@ -448,7 +450,7 @@ class POS():
 			comp_As = compress_to_1(out_tuple[1])
 		else:
 			comp_As = out_tuple[1]
-		out_tuple = (out_tuple[0], comp_As, out_tuple[2], self.int_name_ref[n])
+		out_tuple = (out_tuple[0], comp_As, out_tuple[2], self.int_name_ref[n], out_tuple[4])
 		return out_tuple
 
 	def __load_dump__(self, n=0, state_change=True):

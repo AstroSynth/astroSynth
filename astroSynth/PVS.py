@@ -463,7 +463,7 @@ class PVS:
         else:
             self.lcs = np.array([fluxs, times]).T
         self.size = len(self.lcs)
-        kwargs = self.kwargs
+        kwargs = self.kwargs[0]
         for i in range(self.size):
             self.kwargs[i] = kwargs
         for index, _ in enumerate(self.lcs):
@@ -704,6 +704,7 @@ class PVS:
         """
         with open(filename, 'rb') as input:
             pobject = pickle.load(input)
+        print('Pobject is: {}'.format(pobject))
         return pobject
 
     def _save_model_(self, path = None):
