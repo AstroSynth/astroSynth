@@ -7,6 +7,7 @@ import shutil
 import time
 import pickle
 import math
+from warnings import warn
 
 """
 PVS (Pulsating Variable Star)- Class
@@ -328,7 +329,24 @@ class PVS:
                                   freq_range=freq_range, L_range=L_range)
         self.built = True
 
-    def __dump_data__(self, src, size=1e5, last_dump=0, dump_num=0):
+    def __dump_data__(self, src, last_dump=0, dump_num=0):
+        """
+        description:
+            Internal Function which handels passing data from memory to disk
+                during the data generation process
+        Params:
+            self: PVS() object
+            src: list to write to disk
+            last_dump: The index at the start of the last dump
+            dump_num: The index of the dump currently happening
+        Returns:
+            N/A
+        Post-State:
+            self.dumps_are_temp is set to true
+            self.dumps[dump_num] is filled with the src list
+            self.class_dumps[dump_bnum] is filled with the classification array for that dump
+            self.classifications is reset to the zero array 
+        """
         self.dumps_are_temp = True
         self.dumps[dump_num] = TemporaryFile()
         self.class_dumps[dump_num] = TemporaryFile()
@@ -338,6 +356,18 @@ class PVS:
         self.classification = np.zeros((0))
 
     def __pick_pulsator__(self, pfrac=0.1):
+        """
+        description:
+            given some pulsation fraction (decimal probability) will return a 1
+                1 with a pfrac * 100 likely hood and a 0 with a (pfrac * 100) - 100
+                likelyhood
+        Params:
+            pfrac: pulsation fraction, float, deceimal probability that a 1 will be returnes
+        Returns:
+            pulsator: 1 or 0
+        Post-State:
+            self.classification has 1 or 0 appened to it
+        """
         rand_pick = np.random.uniform(0, 10)
         if rand_pick < pfrac * 10:
             pulsator = True
@@ -348,6 +378,20 @@ class PVS:
         return pulsator
 
     def __generate_multi__(self, pfrac=0.1, exposure_time=30):
+        """
+        description:
+            generation function for generating non continuous epherarities
+        Params:
+            pfrac: the pulsation fraction of returned objects [float]
+            exposure_time: the time in seconds between the center of one exposre
+                            and the center of the next exposure [float]
+        Returns:
+            N/A
+        Pre-State:
+            Light Curves Non-generates
+        Post-State:
+            Light Curves Generated and accessable to the user
+        """
         dump_num = 0
         last_dump = 0
         list_lcs = list()
@@ -378,6 +422,23 @@ class PVS:
     def __generate_single__(self, visit_range=[1, 10], visit_size_range=[10, 100],
                             pfrac=0.1, exposure_time=30, break_size_range=[5, 25],
                             etime_units=u.second, btime_units=u.day, vtime_units=u.hour):
+        """
+        description:
+            Generation routine for generating a light curves based on a shared epherities
+        Params:
+            Visit_range: integer list defining the minimum number of visits and the maximum
+                         number of visits
+            Visit_size_range: float list defining the minimum length of a visit and 
+                              The maximum size of a visit
+            pfrac: Float defining the likelyhood that a target will be a pulsator
+            exposure_time: the time in seconds between the center of one exposre
+                            and the center of the next exposure [float]
+            break_size_range: float list defining the minimum and maximum length of breaks
+                              between visits
+            etime_units: The unit (astroPy.units) defining how the expoure time is defined
+            btime_units: the unit (astroPy.units) defining how the break time is defined
+            vtime_units: the unit (astroPy.units) defining how the visit time unit is defined 
+        """
         pulsator = self.__pick_pulsator__(pfrac=pfrac)
         if pulsator:
             classification = 1
@@ -534,6 +595,20 @@ class PVS:
             return self.lcs[0][0], self.lcs[0][1], self.classification[0], 0, self.kwargs[0]
 
     def xget_lc(self, stop=None, start=0):
+        """
+        description:
+            iterator over the light curves in a PVS object
+        Params:
+            stop: the maximum index to iterate to before stoping
+            start: the index to start iteration from
+        Yeilds:
+            Current light curve including
+                Flux Array [list]
+                Time Array [list]
+                Classification as Pulsator or NOV [int]
+                Absolute Index Within PVS() [int]
+                parameters defining target [dict]
+        """
         if stop is None:
             stop = self.size
         if stop > self.size:
@@ -542,6 +617,19 @@ class PVS:
             yield self.__get_lc__(n=i)
 
     def save(self, path=None, ftemp_override=False):
+        """
+        description:
+            save the current PVS object to disk for latter use
+        Params:
+            path: the path to save the object to
+            ftemp_override: allows the user to prevent overwriting of files when saving
+                            In that case no files will be saved
+        Returns:
+            Path to the saved files
+        Post-State:
+            All data needed to recrate PVS object written to disk
+
+        """
         try:
             assert self.generated is True
         except AssertionError as e:
@@ -591,16 +679,43 @@ class PVS:
 
     @staticmethod
     def __pickle_object__(obj, filename):
+        """
+        description:
+            General Helper function to pickle an object 
+        Params:
+            obj: object to be pickled
+            filename: Name to call pickeled object on disk
+        Post-State:
+            object obj saved as a pickle on disk
+        """
         with open(filename, 'wb') as output:
             pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
     @staticmethod
     def __open_pickle_jar__(filename):
+        """
+        description:
+            general helper function to unpickle and read object from
+                disk
+        Params:
+            filename: the file to read from
+        Returns:
+            pobject: the object that was unpickeld
+        """
         with open(filename, 'rb') as input:
             pobject = pickle.load(input)
         return pobject
 
     def _save_model_(self, path = None):
+        """
+        description:
+            General helper function to save all the meta data assocuated with PVS() object
+                to disk
+        Params:
+            path: the path to save to
+        Post-state:
+            All metadata about PVS stored to disk at path path
+        """
         try:
             assert path is not None
         except AssertionError as e:
@@ -628,6 +743,15 @@ class PVS:
         self.__pickle_object__(self.kwargs, '{}/pparams.pkl'.format(path))
 
     def load(self, directory='.', start=-1):
+        """
+        description:
+            Loads a saved PVS object from disk and initlalizes it in such a way as to be
+                useful to the user
+        params:
+            directory: the path to load from
+            start: the first dump number to use (-1 will place the scanner at the end of the
+                                                PVS object)
+        """
         files = os.listdir(directory)
         if directory[-1] == '/':
             directory = directory[:-1]
@@ -704,7 +828,7 @@ class PVS:
             assert "pparams.pkl" in os.listdir(directory)
             go = True
         except AssertionError as e:
-            print('Warning!, unable to locate pulsation parameters file',
+            warn('Warning!, unable to locate pulsation parameters file',
                   'pparams.pkl missing in {}'.format(directory),
                   'pulsation parameters will be intialized to empty parameter matrix')
             self.kwargs = [{'num': None, 'amp':[None], 'freq':[None], 'phase':[None]}] * self.size
@@ -716,6 +840,12 @@ class PVS:
         self.temp_file = False
 
     def __repr__(self):
+        """
+        description:
+            generate a string representation of the PVS object
+        Returns:
+            string representation of the PVS object
+        """
         l = list()
         l.append('Name: {n}'.format(n=self.name))
         l.append('Size: {s}'.format(s=self.size))
@@ -737,6 +867,23 @@ class PVS:
         return out
 
     def get_ft(self, n=0, s=300, state_change=False, power_spec=False):
+        """
+        description:
+            retuens the Lomb-Scargle Periodigram of a spesific light curve in PVS
+                object's memory
+        Params:
+            n: Index of light curve to take the LSP of
+            s: Number of frequency bins ot use in the LSP
+            state_change: Should PVS dump all current data in order to focus on the 
+                        region where n light curve is or just grab that one
+            power_spec: return a power spec or a amplitude normalized LSP
+        Retuens:
+            Freuqncy List
+            Amplitude List
+            Classification [int]
+            Index [int]
+            paramertes defining light curve [dict]
+        """
         Time, Flux, Classification, o, pp = self.__get_lc__(n, state_change=state_change)
         try:
             FT = Gen_FT(Time, Normalize(Flux, df=False), NyApprox(Time), s, power_spec=power_spec)
@@ -745,15 +892,40 @@ class PVS:
             raise
         return FT['Freq'], FT['Amp'], Classification, n, pp
 
-    def xget_ft(self, start=0, stop=None, s=300, power_spec=False):
+    def xget_ft(self, start=0, stop=None, s=300, power_spec=False,
+                state_change=True):
+        """
+        description:
+            iterator for LSPs associated with light curves in PVS
+        Params:
+            Start: Value to start iteration from
+            Stop: Value to stop iteration at
+            s: number of frequency bins to use in LSP
+            power_spec: return a power spec or a amplitude normalized LSP
+            state_change: Should PVS dump all current data in order to focus on the 
+                        region where n light curve is or just grab that one
+        Yeilds:
+            For the current LSP:
+                Freuqncy List
+                Amplitude List
+                Classification [int]
+                Index [int]
+                paramertes defining light curve [dict]
+        """
         if stop is None:
             for i in range(start, self.size):
-                yield self.get_ft(n=i, s=s, power_spec=power_spec)
+                yield self.get_ft(n=i, s=s, power_spec=power_spec,
+                                  state_change=state_change)
         else:
             for i in range(start, stop):
-                yield self.get_ft(n=i, s=s, power_spec=power_spec)
+                yield self.get_ft(n=i, s=s, power_spec=power_spec,
+                                  state_change=state_change)
 
     def batch_get(self, batch_size=10, ft=False, s=None, mem_size=1e9):
+        """
+        description:
+            Get batches of data either Light curves of LSPs
+        """
         if isinstance(batch_size, str):
             try:
                 assert batch_size == 'mem_size'

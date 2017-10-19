@@ -8,6 +8,7 @@ import astropy.units as u
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft, fftfreq, fftshift
 from astropy.stats import LombScargle
+from warnings import warn
 # import numba
 """
 Description:
@@ -156,13 +157,13 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
     if len(timeSansNAN) > 0:
         res = 1 / (max(timeSansNAN) - min(timeSansNAN))
     else:
-        print('NON FATAL ERROR (time Not Build Correctly) |'
+        warn('NON FATAL ERROR (time Not Build Correctly) |'
               'ATTEMPTING RECOVERING WITH DEFAULT SETTINGS')
         try:
             res = 1.0 / 30.0
-            print('RECOVERY [OKAY]')
+            warn('RECOVERY [OKAY]')
         except:
-            print('RECOVERY [FAILED] | HARD FAIL')
+            warn('RECOVERY [FAILED] | HARD FAIL')
             return -1
     # samples = int(NyFreq/res) * 10
     samples = s
@@ -171,17 +172,11 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
     xuse = np.asarray(time)
     yuse = np.asarray(flux)
 
-    # import matplotlib.pyplot as plt
-    # plt.plot(xuse, yuse, 'k--o')
-    # plt.title('The Standard Deviation is: {}'.format(np.std(yuse)))
-    # plt.show()
-
-
-
     try:
         pgram = lombscargle(xuse, yuse, f * 2 * np.pi)
     except ZeroDivisionError:
-        pgram = np.linspace(0, 1, 300)
+        warn('Zero division encountered in GEN_FT')
+        pgram = np.linspace(0, 1, samples)
     normval = xuse.shape[0]
     if power_spec is False:
         pgramgraph = np.sqrt(4 * (pgram / normval))

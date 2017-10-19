@@ -44,6 +44,8 @@ class POS():
 
 	@staticmethod
 	def __load_spec_class__(path):
+		"""
+		"""
 		file_data = open(path, 'rb')
 		file_data = file_data.decode('utf-8')
 		file_data = file_data.readlines()
@@ -283,7 +285,6 @@ class POS():
 		return self.__get_lc__(n=n, full=True, state_change=state_change)
 
 	def PVS_get_lc(self, n=0, state_change=False):
-		print(list(self.absolute_ref.keys())[0:10])
 		refernce = self.absolute_ref[n]
 		return self.get_lc_sub(n=refernce[0], sub_element=refernce[1], 
 			                   state_change=state_change)
