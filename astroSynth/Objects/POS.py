@@ -233,15 +233,17 @@ class POS():
 				if full is True:
 					times = list()
 					fluxs = list()
-					for Time, Flux, classes, _, _ in pull_from[target_id].xget_lc(start=start,
+					for Time, Flux, classes, _, p in pull_from[target_id].xget_lc(start=start,
 						                                                       stop=stop):
 						times.extend(Time)
 						fluxs.extend(Flux)
 						c = classes
+						pp = p
 				else:
 					times = pull_from[target_id][sn][0]
 					fluxs = pull_from[target_id][sn][1]
 					c = pull_from[target_id][sn][2]
+					pp = pull_from[target_id][sn][4]
 			else:
 				try:
 					assert sn < len(self.targets[target_id])
@@ -253,31 +255,36 @@ class POS():
 				if full is True:
 					times = list()
 					fluxs = list()
-					for Time, Flux, classes, _, _ in self.targets[target_id].xget_lc(start=start,
+					for Time, Flux, classes, _, p in self.targets[target_id].xget_lc(start=start,
 						                                                          stop=stop):
 						times.extend(Time)
 						fluxs.extend(Flux)
 						c = classes
+						pp = p
 				else:
 					times = self.targets[target_id][sn][0]
 					fluxs = self.targets[target_id][sn][1]
 					c = self.targets[target_id][sn][2]
+					pp = self.targets[target_id][sn][4]
 		else:
 			if stop == None:
 				stop = len(self.targets[target_id])
 			if full is True:
 				times = list()
 				fluxs = list()
-				for Time, Flux, classes, _, _ in self.targets[target_id].xget_lc(start=start,
+				for Time, Flux, classes, _, p in self.targets[target_id].xget_lc(start=start,
 					                                                          stop=stop):
 					times.extend(Time)
 					fluxs.extend(Flux)
 					c = classes
+					pp = p
 			else:
 				times = self.targets[target_id][sn][0]
 				fluxs = self.targets[target_id][sn][1]
 				c = self.targets[target_id][sn][2]
-		return times, fluxs, c, target_id
+				pp = self.targets[target_id][sn][4]
+
+		return times, fluxs, c, target_id, pp
 
 	def get_lc(self, n=0, full=True, sn=0, start=0, stop=None, state_change=False):
 		return self.__get_lc__(n=n, full=full, sn=sn, start=start, stop=stop,
