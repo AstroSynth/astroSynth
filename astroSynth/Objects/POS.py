@@ -418,13 +418,13 @@ class POS():
 			yield self.__get_spect__(n=i, s=s, dim=dim, power_spec=False,
 									 state_change=state_change)
 
-	def PVS_get_ft(self, n=0, s=500, state_change=False, power_spec=True, ct1=False):
+	def PVS_get_ft(self, n=0, s=300, state_change=False, power_spec=True, ct1=False):
 		refernce = self.absolute_ref[n]
 		return self.get_ft_sub(n=refernce[0], sub_element=refernce[1],
 							   state_change=state_change, power_spec=power_spec,
-							   ct1=ct1)
+							   ct1=ct1, s=s)
 
-	def PVS_xget_ft(self, start=0, stop=None, s=500, state_change=True,
+	def PVS_xget_ft(self, start=0, stop=None, s=300, state_change=True,
 				power_spec=False, ct1=False):
 		if stop is None:
 			stop = self.size
@@ -434,9 +434,9 @@ class POS():
 			refernce = self.absolute_ref[i]
 			yield self.get_ft_sub(n=refernce[0], sub_element=refernce[1],
 							   state_change=state_change, power_spec=power_spec,
-							   ct1=ct1)
+							   ct1=ct1, s=s)
 
-	def get_ft_sub(self, n=0, sub_element=0, s=500, state_change=False, power_spec=True, ct1=False):
+	def get_ft_sub(self, n=0, sub_element=0, s=300, state_change=False, power_spec=False, ct1=False):
 		target_id = self.__get_target_id__(n)
 		target_num = self.__get_target_number__(n)
 
