@@ -427,8 +427,8 @@ class POS():
 	def PVS_xget_ft(self, start=0, stop=None, s=300, state_change=True,
 				power_spec=False, ct1=False):
 		if stop is None:
-			stop = self.size
-		if stop > self.size:
+			stop = len(self.absolute_ref)
+		if stop > len(self.absolute_ref):
 			raise IndexError('Error! Stop Value is Larger than size of PVS Object')
 		for i in range(start, stop):
 			refernce = self.absolute_ref[i]
