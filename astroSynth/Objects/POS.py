@@ -418,7 +418,7 @@ class POS():
 			yield self.__get_spect__(n=i, s=s, dim=dim, power_spec=False,
 									 state_change=state_change)
 
-	def PVS_get_ft(self, n=0, s=300, state_change=False, power_spec=True, ct1=False):
+	def PVS_get_ft(self, n=0, s=300, state_change=False, power_spec=False, ct1=False):
 		refernce = self.absolute_ref[n]
 		return self.get_ft_sub(n=refernce[0], sub_element=refernce[1],
 							   state_change=state_change, power_spec=power_spec,

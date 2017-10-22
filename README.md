@@ -1,5 +1,5 @@
 # astroSynth
-Version: 0.6.1.3 - Beta <br>
+Version: 0.6.1.4 - Beta <br>
 A very basic synthetic generation suite
 
 # Installation
