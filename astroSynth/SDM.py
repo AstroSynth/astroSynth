@@ -1,13 +1,19 @@
 import numpy as np
 import pandas as pd
-from scipy.signal import lombscargle
+
 import math
 import random as r
-from tqdm import tqdm
+
 import astropy.units as u
+from astropy.stats import LombScargle
+
+from scipy.signal import lombscargle
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft, fftfreq, fftshift
-from astropy.stats import LombScargle
+from scipy.stats import chisquare
+from scipy.optimize import curve_fit
+
+from tqdm import tqdm
 from warnings import warn
 # import numba
 """
@@ -127,8 +133,22 @@ def Gen_fft(time, flux, NyFreq):
     yf = 2.0/N * np.abs(yf[0:N//2])
     return {'Freq': xf, 'Amp': yf}
 
+def Periodigram(x, y, frequency_range=[0.5, 1], samples=100):
+    def sine_nv(x, f, phase, A):
+        return A*np.sin((2*np.pi*f*x)+phase)
+    sine = np.vectorize(sine_nv)
+    frequencies = np.linspace(frequency_range[0], frequency_range[1], samples)
+    chi2 = np.zeros(samples)
+    for i, frequency in enumerate(frequencies):
+        fit_func = lambda xf, phase, A: sine(xf, frequency, phase, A)
+        fit, covar = curve_fit(fit_func, x, y)
+        freq_fit = sine(x, frequency, *fit)
+        ddof = (len(y)-2)**2
+        chi2[i] = (chisquare(freq_fit, f_exp=y)[0])/ddof
+    return frequencies, chi2
+
 # @numba.jit()
-def Gen_FT(time, flux, NyFreq, s, power_spec=False):
+def Gen_FT(time, flux, NyFreq, s, power_spec=False, periodigram=False):
     """
     Description:
         Generate a Fourier Transform (Lomb Scargle Periodigram techniacally) given a time 
@@ -172,22 +192,25 @@ def Gen_FT(time, flux, NyFreq, s, power_spec=False):
     xuse = np.asarray(time)
     yuse = np.asarray(flux)
 
-    try:
-        pgram = lombscargle(xuse, yuse, f * 2 * np.pi)
-    except ZeroDivisionError:
-        warn('Zero division encountered in GEN_FT')
-        pgram = np.linspace(0, 1, samples)
-    normval = xuse.shape[0]
-    if power_spec is False:
-        pgramgraph = np.sqrt(4 * (pgram / normval))
+    if not periodigram:
+        try:
+            pgram = lombscargle(xuse, yuse, f * 2 * np.pi)
+        except ZeroDivisionError:
+            warn('Zero division encountered in GEN_FT')
+            pgram = np.linspace(0, 1, samples)
+        normval = xuse.shape[0]
+        if power_spec is False:
+            pgramgraph = np.sqrt(4 * (pgram / normval))
+        else:
+            pgramgraph = pgram
+        fgo = f
+        return {'Freq': fgo.tolist(), 'Amp': pgramgraph.tolist()}
     else:
-        pgramgraph = pgram
-    # pgramgraph = pgramgraph/abs(np.max(pgramgraph))
-    fgo = f
-    return {'Freq': fgo.tolist(), 'Amp': pgramgraph.tolist()}
+        frequency, chi2 = periodigram()
+
 
 def Gen_Spect(data, break_size, samples, time_col='Time', flux_col='Flux',
-              spread_UD=10, spred_LR=2):
+              spread_UD=10, spred_LR=2, pbar=False):
     """
     Description:
         Generate a spectrogram (or Tailing FT) given some keyed data set
@@ -210,14 +233,14 @@ def Gen_Spect(data, break_size, samples, time_col='Time', flux_col='Flux',
 
     """
     depth = 0
-    for i in tqdm(data.axes[0]):
+    for i in tqdm(data.axes[0], disable=pbar):
         check = len(data[i][time_col]) // break_size
         if check > 0:
             for j in range(check):
                 depth += 1
     spect = np.zeros((depth, samples))
     count = 0
-    for i in tqdm(data.axes[0]):
+    for i in tqdm(data.axes[0], disable=pbar):
         check = len(data[i][time_col]) // break_size
         if check > 0:
             for j in range(check):
@@ -236,7 +259,7 @@ def Gen_Spect(data, break_size, samples, time_col='Time', flux_col='Flux',
 
 
 def Make_LC(noise_level=0, f=lambda x: np.sin(x), magnitude=10, numpoints=100,
-            start_time=0, end_time=0):
+            start_time=0, end_time=0, af=lambda x: 0):
     """
     Description:
         Builds a syntehtic light curve for a pulsating star given some functioanal form
@@ -248,6 +271,7 @@ def Make_LC(noise_level=0, f=lambda x: np.sin(x), magnitude=10, numpoints=100,
         numpoints - number of points to generate for the light curve (int)
         start_time - start time of the light curve (float)
         end_time - end time of the light curve (float)
+        af - alias function, used to indriduced alias signals into *all* light curves (function)
     Returns:
         DataFrame of two colums:
             'Time' -  the time the light curve happened over
@@ -262,8 +286,12 @@ def Make_LC(noise_level=0, f=lambda x: np.sin(x), magnitude=10, numpoints=100,
         temp_lc = np.random.normal(magnitude, noise_level, numpoints)
         signal = f(key)
         temp_lc += signal
+        alias_signal = af(key)
+        temp_lc += alias_signal
     else:
         temp_lc = f(key)
+        alias_signal = af(key)
+        temp_lc += alias_signal
     data = {'Time': key,
            'Flux': temp_lc}
     return pd.DataFrame(data=data)
@@ -320,7 +348,7 @@ def Insert_Break(data, break_size_range=[0.1, 10], break_period_range=[1, 25],
 
 def Make_Visits(data, visit_range=[0, 10], visit_size_range=[0.5, 2],
                 break_size_range=[1, 10], exposure_time=30, etime_units=u.second,
-                btime_units=u.day, vtime_units=u.hour, time_col=0, flux_col=0):
+                btime_units=u.day, vtime_units=u.hour, time_col=0, flux_col=0,pbar=False):
     unorm_break_size_range = [(x*btime_units).to(etime_units).value for x in break_size_range]
     unorm_visit_size_range = [(x*vtime_units).to(etime_units).value for x in visit_size_range]
     break_size_range = [int(x/exposure_time) for x in unorm_break_size_range]
@@ -337,7 +365,7 @@ def Make_Visits(data, visit_range=[0, 10], visit_size_range=[0.5, 2],
     times = list()
     prev = 0
     if num_breaks != 0:
-        for visit, lbreak in tqdm(zip(visit_length, break_length), total=num_breaks):
+        for visit, lbreak in tqdm(zip(visit_length, break_length), total=num_breaks, disable=pbar):
             if not visit+prev >= len(data[time_col])*exposure_time:
                 values.append(data[flux_col][prev:prev+visit])
                 times.append(data[time_col][prev:prev+visit])
@@ -353,7 +381,7 @@ def Make_Visits(data, visit_range=[0, 10], visit_size_range=[0.5, 2],
 
 def Make_Syth_LCs(noise_range=[0.1, 1.1], f=lambda x: np.sin(x),
                   pulsator=True, numpoints=100, start_time=0, end_time=0,
-                  magnitude=10):
+                  magnitude=10, af=lambda x: 0):
     """
     Description:
         More abstract caller for Make_lc() wich allows for non 
@@ -376,11 +404,11 @@ def Make_Syth_LCs(noise_range=[0.1, 1.1], f=lambda x: np.sin(x),
     if pulsator is True:
         lcs = Make_LC(noise_level=noise, f=f, numpoints=numpoints,
                       start_time=start_time, end_time=end_time,
-                      magnitude=magnitude)
+                      magnitude=magnitude, af=af)
     else:
         lcs = Make_LC(noise_level=noise, f=lambda x: 0,
                       numpoints=numpoints, start_time=start_time,
-                      end_time=end_time, magnitude=magnitude)
+                      end_time=end_time, magnitude=magnitude, af=af)
     return lcs.as_matrix().tolist()
 
 

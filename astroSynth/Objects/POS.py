@@ -18,7 +18,7 @@ from warnings import warn
 
 class POS():
 	def __init__(self, prefix='SynthStar', mag_range=[10, 20], noise_range=[0.05, 0.1],
-		         number=100, numpoints=100000, verbose=0, name=None, DEBUG=False):
+		         number=100, numpoints=100000, verbose=0, name=None, DEBUG=False,pbar=True):
 		if name is None:
 			name = prefix
 		self.name = name
@@ -41,6 +41,7 @@ class POS():
 		self.DEBUG = DEBUG
 		self.logfile = 'POS_{}.log'.format(self.name)
 		self.absolute_ref = dict()
+		self.pbar = not pbar
 
 	@staticmethod
 	def __load_spec_class__(path):
@@ -81,7 +82,7 @@ class POS():
 	  		  			 phase_range=[0, np.pi], L_range=[1, 3],
     		  			 amp_varience=0.01, freq_varience=0.01, 
     		  			 phase_varience=0.01,  obs_range=[10, 100]):
-		for i in tqdm(range(self.size)):
+		for i in tqdm(range(self.size), disable=self.pbar):
 			L_range = self.__list_check__(L_range)
 			amp_range = self.__list_check__(amp_range)
 			phase_range = self.__list_check__(phase_range)
@@ -150,13 +151,14 @@ class POS():
 	def generate(self, pfrac=0.5, target_in_mem=100, vtime_units=u.hour,
 				 btime_units=u.day, exposure_time=30, visit_range=[1, 10],
 				 visit_size_range=[0.5, 2], break_size_range=[10, 100],
-				 etime_units=u.second):
+				 etime_units=u.second,af=lambda x: 0):
 		self.save_exists = False
 		dumpnum = 0
 		lastdump = 0
 		refs = list()
 		last = 0
-		for j, i in tqdm(enumerate(self.targets), desc='Geneating Survey Data', total=self.size):
+		for j, i in tqdm(enumerate(self.targets), desc='Geneating Survey Data', total=self.size,
+						disable=self.pbar):
 			refs.append(i)
 			rand_pick = np.random.uniform(0, 10)
 			if rand_pick < pfrac * 10:
@@ -167,7 +169,8 @@ class POS():
 			self.targets[i].generate(pfrac=self.classes[i], vtime_units=vtime_units,
 				                     btime_units=btime_units, exposure_time=exposure_time,
 				                     visit_range=visit_range, visit_size_range=visit_size_range,
-				                     break_size_range=break_size_range, etime_units=etime_units)
+				                     break_size_range=break_size_range, etime_units=etime_units,
+				                     af=af)
 			for k in range(len(self.targets[i])):
 				self.absolute_ref[last+k] = [j, k]
 			last += len(self.targets[i]) - 1
@@ -338,11 +341,8 @@ class POS():
 	def __get_spect__(self, n=0, s=500, dim=50,
 					  power_spec=True, state_change=True,
 					  Normalize=False):
-		self.__Debug_log__(0)
-		self.__Debug_log__(1, arg='Started Target Retreval')
 		target_id = self.__get_target_id__(n)
 		target_num = self.name_int_ref[target_id]
-		self.__Debug_log__(2, arg='Target id {} and Target Num {}'.format(target_id, target_num))
 		LD_stretch = 1
 		dump_num = -1
 		self.count = n
@@ -351,8 +351,6 @@ class POS():
 				dump_num = int(k)
 				break
 		Amps = list()
-		self.__Debug_log__(3, arg='Current Object State is: {}'.format(self.state))
-		self.__Debug_log__(4, arg='Target dump num: {}'.format(dump_num))
 		if dump_num != self.state:
 			pull_from = self.__load_dump__(n=dump_num, state_change=state_change)
 			if state_change is True:
@@ -360,9 +358,7 @@ class POS():
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index, kwarg in self.targets[target_id].xget_ft(power_spec=True):
-					# Amps.append(compress_to_1(Amp))
 					Amps.append(Amp)
-				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, self.targets[target_id][0][2], target_id, kwarg)
 			else:
@@ -370,37 +366,25 @@ class POS():
 				if UD_stretch < 1:
 					UD_stretch = int(1/UD_stretch)
 				for Freq, Amp, Class, Index, kwarg in pull_from[target_id].xget_ft(power_spec=True):
-					# Amps.append(compress_to_1(Amp))
 					Amps.append(Amp)
-				# Amps = self.__compress_spect__(Amps)
 				out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 					         Freq, pull_from[target_id][0][2], target_id, kwarg)
 		else:
-			self.__Debug_log__('Break', arg='In Else', udfile=False)
-			self.__Debug_log__(5, arg='target length is : {}'.format(len(self.targets)))
-			self.__Debug_log__(6, arg='First target is: {}'.format(list(self.targets.keys())[0]))
 			UD_stretch = float(len(self.targets[target_id])/dim)
 			if UD_stretch < 1:
 				UD_stretch = 1/UD_stretch
 			for Freq, Amp, Class, Index, kwarg in self.targets[target_id].xget_ft(power_spec=True):
-				#Amps.append(compress_to_1(Amp))
 				Amps.append(Amp)
-				self.__Debug_log__('{}:{}'.format(7, Index), arg='Max amp is: {}'.format(max(Amp)))
-			# Amps = self.__compress_spect__(Amps)
-			self.__Debug_log__(10, arg='UD: {}, LD: {}'.format(UD_stretch, LD_stretch))
 			out_tuple = (np.repeat(np.repeat(Amps, LD_stretch, axis=1),UD_stretch, axis=0),
 				         Freq, self.targets[target_id][0][2], target_id, kwarg)	
-			self.__Debug_log__('8:0 Amp Check', arg='Max amplitues of 0th Amp is: {}'.format(max(out_tuple[0][0])))
 		orig_max = out_tuple[0].max()
 		orig_min = out_tuple[0].min()
 		orig_range = orig_max - orig_min
 		out_img = misc.imresize(out_tuple[0], (dim, s), interp='cubic')
 		out_img = ((out_img * orig_range)/255.0)+orig_min
 		if Normalize is True:
-			# out_img = out_img/out_img.max()
 			out_img = out_img/(np.mean(out_img) - 1)
 		out_tuple = (out_img, out_tuple[1], out_tuple[2], out_tuple[3], out_tuple[4])
-		self.__Debug_log__('Fstate', arg='Final State is: {}'.format(self.state))
 		return out_tuple
 
 	def get_spect(self, n=0, s=500, dim=50, power_spec=True, 
@@ -435,6 +419,18 @@ class POS():
 			yield self.get_ft_sub(n=refernce[0], sub_element=refernce[1],
 							   state_change=state_change, power_spec=power_spec,
 							   ct1=ct1, s=s)
+	def get_full_ft(self, n=0, s=500, state_change=False, power_spec=False, ct1=False, frange=[None],nymult=1):
+		lc = self.get_full_lc(n=n, state_change=state_change)
+		if frange[0] == None:
+			avg_sample_rate = (max(lc[0])-min(lc[0]))/len(lc[0])
+			nyquist = 1/(2*avg_sample_rate)
+			res = 1/(max(lc[0])-min(lc[0]))
+			f = np.linspace(0.1*res, nymult*nyquist, s)
+		else:
+			f = np.linspace(frange[0], frange[1], s)
+
+		pgram = lombscargle(lc[0], lc[1], f, normalize=True)
+		return f, pgram
 
 	def get_ft_sub(self, n=0, sub_element=0, s=300, state_change=False, power_spec=False, ct1=False):
 		target_id = self.__get_target_id__(n)
@@ -508,7 +504,8 @@ class POS():
 		if os.path.exists(mem_path):
 			shutil.rmtree(mem_path)
 		os.mkdir(mem_path)	
-		for target in tqdm(self.targets, total=self.size, desc='Saving {} to Disk'.format(self.name)):
+		for target in tqdm(self.targets, total=self.size, desc='Saving {} to Disk'.format(self.name),
+						   disable=self.pbar):
 			if self.targets[target] is not None:
 				target_save_path = "{}/{}".format(mem_path, target)
 				if os.path.exists(target_save_path):
@@ -596,21 +593,21 @@ class POS():
 		for d, p in zip(dumps, dump_dirs):	
 			self.dumps[d] = p
 		with open('{}/Item_Loc.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc="Item Loc", disable=not pbar):
+			for line in tqdm(f.readlines(), desc="Item Loc", disable=self.pbar):
 				data = line.split(':')
 				self.target_ref[int(data[0])] = [int(data[1]), int(data[2])]
 		with open('{}/Item_Ref.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc="Item Ref", disable=not pbar):
+			for line in tqdm(f.readlines(), desc="Item Ref", disable=self.pbar):
 				data = line.split(':')
 				self.int_name_ref[int(data[0])] = data[1].rstrip()
 				self.name_int_ref[data[1].rstrip()] = int(data[0])
 		with open('{}/Object_Class.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc="Object Class", disable=not pbar):
+			for line in tqdm(f.readlines(), desc="Object Class", disable=self.pbar):
 				data = line.split(':')
 				self.classes[data[0].rstrip()] = int(data[1])
 
 		with open('{}/Object_Meta.POS'.format(directory), 'r') as f:
-			for line in tqdm(f.readlines(), desc='Object Meta', disable=not pbar):
+			for line in tqdm(f.readlines(), desc='Object Meta', disable=self.pbar):
 				data = line.split(':')
 				if data[0] == 'Size':
 					self.size = int(data[1])
@@ -636,7 +633,7 @@ class POS():
 			self.absolute_ref = self.__gen_absolute_ref__(save=True, directory=directory, pbar=pbar)
 		else:
 			with open('{}/Absolute_Ref.POS'.format(directory), 'r') as f:
-				for line in tqdm(f.readlines(), desc="Absolute Path", disable=not pbar):
+				for line in tqdm(f.readlines(), desc="Absolute Path", disable=self.pbar):
 					data = line.split(':')
 					self.absolute_ref[int(data[0].rstrip())] = [int(data[1].rstrip()),
 															    int(data[2].rstrip())]
@@ -646,7 +643,7 @@ class POS():
 		c = 0
 		for n, target in tqdm(enumerate(self.xget_object()), 
 							  desc='Generating Absolute Refernce',
-							  disable=not pbar):
+							  disable=self.pbar):
 			for i in range(len(target)):
 				iaf[c] = [n, i]
 				c += 1

@@ -123,6 +123,19 @@ class PVS:
         """
         print('Version 0.6.1.5 Development')
 
+    def __nu_0__(self, n, l):
+        raise NotImplementedError
+
+    def __rot_split_freq__(self, l, n, p_rot):
+        nu_0 = self.__nu_0__(n, l)
+        ms = np.arange(-l, l, 1)
+        freqs = list()
+        for m in ms:
+            nu = nu_0 + (m/p_rot) * (1 - (1 / (l * (l + 1))))
+            freqs.append(nu)
+        return freqs
+
+
     def __build_single__(self, phase_range=[0, np.pi], amp_range=[0, 1],
                          freq_range=[1e-7, 1], L_range=[1, 3]):
         kwargs = dict()
@@ -377,7 +390,7 @@ class PVS:
             self.classification = np.append(self.classification, 0)
         return pulsator
 
-    def __generate_multi__(self, pfrac=0.1, exposure_time=30):
+    def __generate_multi__(self, pfrac=0.1, exposure_time=30, af=lambda x:0):
         """
         description:
             generation function for generating non continuous epherarities
@@ -401,14 +414,16 @@ class PVS:
             pulsator = self.__pick_pulsator__(pfrac=pfrac)
             if self.vmod is True:
                 tlc = Make_Syth_LCs(f=lambda x: self.f[i](x, self.kwargs[i]), pulsator=pulsator,
-                                        numpoints=self.depth,
-                                        noise_range=self.noise_range, start_time=self.T0,
-                                        end_time=self.T0 + obs_time, magnitude=self.mag)
+                                    numpoints=self.depth,
+                                    noise_range=self.noise_range, start_time=self.T0,
+                                    end_time=self.T0 + obs_time, magnitude=self.mag,
+                                    af=af)
             else:
                 tlc = Make_Syth_LCs(f=self.f, pulsator=pulsator,
-                                        numpoints=self.depth,
-                                        noise_range=self.noise_range, start_time=self.T0,
-                                        end_time=self.T0 + obs_time, magnitude=self.mag)
+                                    numpoints=self.depth,
+                                    noise_range=self.noise_range, start_time=self.T0,
+                                    end_time=self.T0 + obs_time, magnitude=self.mag,
+                                    af=af)
             list_lcs.append(tlc)
             if getsizeof(list_lcs) > 1e5:
                 self.__dump_data__(list_lcs, last_dump=last_dump, dump_num=dump_num)
@@ -421,7 +436,8 @@ class PVS:
 
     def __generate_single__(self, visit_range=[1, 10], visit_size_range=[10, 100],
                             pfrac=0.1, exposure_time=30, break_size_range=[5, 25],
-                            etime_units=u.second, btime_units=u.day, vtime_units=u.hour):
+                            etime_units=u.second, btime_units=u.day, vtime_units=u.hour,
+                            af=lambda x: 0):
         """
         description:
             Generation routine for generating a light curves based on a shared epherities
@@ -448,7 +464,7 @@ class PVS:
         tlc = Make_Syth_LCs(f=lambda x: self.f(x, self.kwargs[0]), pulsator=pulsator,
                             numpoints=self.depth, noise_range=self.noise_range,
                             start_time=self.T0, end_time=self.T0 + obs_time,
-                            magnitude=self.mag)
+                            magnitude=self.mag,af=af)
         tlc = np.array(tlc).T
         times, fluxs, integration_time = Make_Visits(tlc, visit_range=visit_range,
                                                      visit_size_range=visit_size_range,
@@ -457,7 +473,8 @@ class PVS:
                                                      vtime_units=vtime_units,
                                                      btime_units=btime_units,
                                                      etime_units=etime_units,
-                                                     time_col=1, flux_col=0)
+                                                     time_col=1, flux_col=0,
+                                                     pbar=self.dpbar)
         if len(times) == 1:
             self.lcs = np.array([[times[0], fluxs[0]]])
         else:
@@ -474,7 +491,8 @@ class PVS:
     def generate(self, pfrac=0.1, vtime_units=u.hour,
                  btime_units=u.day, exposure_time=30,
                  visit_range=[1, 10], visit_size_range=[0.5, 2],
-                 break_size_range=[10, 100], etime_units=u.second):
+                 break_size_range=[10, 100], etime_units=u.second,
+                 af=lambda x:0):
         """
         description:
             generate the data given an already build PVS() object 
@@ -516,12 +534,12 @@ class PVS:
             raise
         self.generated = True
         if self.single is False:
-            self.__generate_multi__(pfrac=pfrac, exposure_time=exposure_time)
+            self.__generate_multi__(pfrac=pfrac, exposure_time=exposure_time,af=af)
         else:
             self.__generate_single__(pfrac=pfrac, exposure_time=exposure_time,
                                      visit_range=visit_range, visit_size_range=visit_size_range,
                                      break_size_range=break_size_range, vtime_units=vtime_units,
-                                     btime_units=btime_units, etime_units=etime_units)
+                                     btime_units=btime_units, etime_units=etime_units,af=af)
 
     def __get_lc__(self, n=0, state_change=False):
         """
