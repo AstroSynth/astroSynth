@@ -20,9 +20,6 @@ class star:
         self.prefix = prefix
         self.t = 0
         self.name = "{}_{:0.2f}_{:0.2f}".format(self.prefix, self.ra, self.dec)
-
-    def __repr__(self):
-        return self.name
         
     def light(self, t):
         outupt = np.sin(t + self.t)
@@ -30,12 +27,20 @@ class star:
         self.t += t[-1]
         return outupt
 
+    def __repr__(self):
+        out_str = list()
+        out_str.append('Name: {}'.format(self.name))
+        out_str.append('RA: {:0.3f}, Dec: {:0.3f}'.format(self.ra, self.dec))
+        out_str.append('Magnitude: {:0.2f}'.format(self.mag))
+        return '\n'.join(out_str)
+
 class celestial_sphere:
-    def __init__(self, number_stars):
+    def __init__(self, number_stars, posfile):
         self.number_stars = number_stars
         self.stars = list()
         self.target_list = np.zeros((number_stars, 4))
-        self.populate()
+        self.posfile = posfile
+        self.populate(self.posfile)
         
     def populate(self, posfile):
         df = pd.read_csv(posfile, nrows=self.number_stars)
@@ -53,6 +58,17 @@ class celestial_sphere:
             if (min_ra <= star.ra <= max_ra) and (min_dec <= star.dec <= max_dec):
                 field.append(star)
         return field
+
+    def __repr__(self):
+        out_str = list()
+        out_str.append('Celestial Sphere')
+        out_str.append('Number of Stars: {}'.format(self.number_stars))
+        out_str.append('Populated From: {}'.format(self.posfile))
+        return '\n'.join(out_str)
+
+    def __get__(self, key):
+        assert isinstance(key, int)
+        return self.stars[key]
 
 class planet:
     def __init__(self, rotperiod, sphere, R, orbperiod=np.pi*1e7, A=149.60e9):
@@ -94,12 +110,20 @@ class planet:
     def orbit(self, mc):
         self.orbitdeg = self.orbperiodMap(mc%self.orbperiod)
 
-    def get_field(self, center, FOV, lat, lon, alt, outputPlot=False):
-        if self.can_observe(alt, lat, lon, center[1], center[0], outputPlot=outputPlot):
+    def get_field(self, center, FOV, lat, lon, alt):
+        if self.can_observe(alt, lat, lon, center[1], center[0]):
             return self.sphere.get_field(center, FOV)
         else:
             return list()
 
+    def __repr__(self):
+        out_str = list()
+        out_str.append('Planet')
+        out_str.append('Radius: {}'.format(self.R))
+        out_str.append('Rotational Period: {}'.format(self.rotperiod))
+        out_str.append('Orbital Period: {}'.format(self.orbperiod))
+        out_str.append('Stars Visible: {}'.format(self.sphere.number_stars))
+        return '\n'.join(out_str)
 
 class telescope:
     def __init__(self, lat, lon, FOV, planet, alt=90, azm=0, elv=2000, minslew=0, starttime = '2000-01-01 12:00:00'):
@@ -197,6 +221,16 @@ class telescope:
             if s:
                 self.DB.insert_data(s.name, time.tolist(), flux.tolist())
 
+    def __repr__(self):
+        out_str = list()
+        out_str.append('Telescope')
+        out_str.append('Latitude: {}'.format(self.lat))
+        out_str.append('Longitude: {}'.format(self.lon))
+        out_str.append('Elevation: {}'.format(self.elv))
+        out_str.append('Pointing: Ra -> {:0.3f}, Dec -> {:0.3f}'.format(self.pointing[1], self.pointing[0]))
+        out_str.append('Azm: {:0.2f}, Alt: {:0.2f}'.format(self.azm, self.alt))
+        return '\n'.join(out_str)
+
 class LCDB:
     def __init__(self, name='TestDB'):
         self.name = name
@@ -219,4 +253,14 @@ class LCDB:
     
     def records(self):
         return self.starData.keys()
+
+if __name__ == '__main__':
+    sphere = celestial_sphere(5000, '../Scrambled_RA_Dec_Mag.csv')
+    earth = planet(86400, sphere, 6378100, orbperiod=25000)
+    Scope = telescope(0, 0, 10, earth, elv=100)
+    print(Scope)
+    print('\n\n')
+    print(earth)
+    print('\n\n')
+    print(sphere)
         

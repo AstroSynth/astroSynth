@@ -262,7 +262,7 @@ def Make_LC(noise_level=0, f=lambda x: np.sin(x), magnitude=10, numpoints=100,
             start_time=0, end_time=0, af=lambda x: 0):
     """
     Description:
-        Builds a syntehtic light curve for a pulsating star given some functioanal form
+        Builds an ephemeris of a pulsating star given some functioanal form
     Args:
         noise_level - noise to introduce into the light curve (introduced via a 
                       normal noise disstribution) (float)
